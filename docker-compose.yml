@@ -1,0 +1,23 @@
+version: "3.9"
+
+services:
+  zaharia-media-dashboard:
+    container_name: zaharia-media-dashboard
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8088:8088"  # Access at: http://192.168.1.182:8088/
+    environment:
+      - NODE_ENV=production
+      # Add any app env vars here, e.g. PLEX_TOKEN=..., SAB_API_KEY=...
+    restart: unless-stopped
+
+    # Persist runtime data if your app writes to /app/data
+    volumes:
+      - ./data:/app/data
+
+    # 👇 These two labels make Unraid show an icon and a WebUI button
+    labels:
+      net.unraid.docker.icon: "https://i.imgur.com/wbo6pQz.png"
+      net.unraid.docker.webui: "http://192.168.1.182:8088/"
