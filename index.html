@@ -811,6 +811,7 @@
       try{ const r=await api('/api/me',{ method:'PUT', body: JSON.stringify(body) }); S.me=r.user; toast('Saved.'); const displayName=[S.me.firstName,S.me.lastName].filter(Boolean).join(' ')||S.me.username; $('#userName').textContent = displayName; const ua=$('#userAvatar'), ui=$('#userInitial'); if(S.me.profileImage){ ua.src=S.me.profileImage; ua.classList.remove('hidden'); ui.classList.add('hidden'); } else { ui.textContent = initialsFor(S.me); ui.classList.remove('hidden'); ua.classList.add('hidden'); } }
       catch(err){ toast(err.error||'Save failed','err'); }
     });
+    $('#btn-admin-close').onclick = ()=> show('#view-apps');
     $('#btn-settings-close').onclick = ()=> show('#view-apps');
 
     // SAB controls
