@@ -611,10 +611,26 @@
 
             // Delete buttons (delegated)
             wrap.querySelectorAll('button[data-del]').forEach(btn=>{
-              btn.onclick = async ()=>{
+              btn.onclick = ()=>{
                 const id = btn.getAttribute('data-del');
-                if(!confirm('Delete this app?')) return;
-                try { await api('/api/apps/'+encodeURIComponent(id), { method:'DELETE' }); toast('App deleted'); await loadApps(); renderTiles(); } catch(e){ toast(e.error||'Delete failed','err'); }
+                const nameInput = wrap.querySelector(`input[data-k="name"][data-key="${id}"]`);
+                const appName = nameInput?.value?.trim() || '';
+                Modal.open({
+                  title: 'Delete App',
+                  bodyHTML: 'Are you sure you want to delete "<span id="delAppName"></span>"?',
+                  confirmText: 'Delete',
+                  onOpen: ()=>{ $('#delAppName').textContent = appName; },
+                  onConfirm: async ()=>{
+                    try {
+                      await api('/api/apps/'+encodeURIComponent(id), { method:'DELETE' });
+                      toast('App deleted');
+                      await loadApps();
+                      renderTiles();
+                    } catch(e){
+                      toast(e.error||'Delete failed','err');
+                    }
+                  }
+                });
               };
             });
           };
@@ -795,6 +811,7 @@
       try{ const r=await api('/api/me',{ method:'PUT', body: JSON.stringify(body) }); S.me=r.user; toast('Saved.'); const displayName=[S.me.firstName,S.me.lastName].filter(Boolean).join(' ')||S.me.username; $('#userName').textContent = displayName; const ua=$('#userAvatar'), ui=$('#userInitial'); if(S.me.profileImage){ ua.src=S.me.profileImage; ua.classList.remove('hidden'); ui.classList.add('hidden'); } else { ui.textContent = initialsFor(S.me); ui.classList.remove('hidden'); ua.classList.add('hidden'); } }
       catch(err){ toast(err.error||'Save failed','err'); }
     });
+    $('#btn-admin-close').onclick = ()=> show('#view-apps');
     $('#btn-settings-close').onclick = ()=> show('#view-apps');
 
     // SAB controls
