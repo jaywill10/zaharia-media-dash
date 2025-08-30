@@ -1,0 +1,24 @@
+{
+  "secrets": {
+    "jwt": "cb361a730d4b5c85f86371ad652cfd51cb9b156ee3323cf7a1f757dc769a6a3a"
+  },
+  "users": [
+    {
+      "username": "admin",
+      "passwordHash": "$2a$10$BKwz.REeCv0as8j./hJfqOin7JjRaXxTUvB2R5eY4zRpfKvFx0PGu",
+      "role": "admin",
+      "firstName": "",
+      "lastName": "",
+      "profileImage": null,
+      "totpSecret": null,
+      "preferences": { "showNowPlaying": true, "appOrder": [] },
+      "createdAt": "2025-01-01T00:00:00.000Z"
+    }
+  ],
+  "invites": [],
+  "resetCodes": [],
+  "apps": [],
+  "features": { "showNowPlaying": true },
+  "sabnzbd": { "baseUrl": "", "apiKey": "" },
+  "integrations": { "plex": { "baseUrl": "", "token": "" } }
+}
