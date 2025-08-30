@@ -44,8 +44,6 @@
       box-shadow: 0 6px 30px rgba(0,0,0,.35);
     }
 
-    .qr canvas { width: 240px !important; height: 240px !important; image-rendering: pixelated; }
-    .qr-box { display: flex; gap: 16px; align-items: flex-start; }
     .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; word-break: break-all; }
     .tab{ border-bottom: 2px solid transparent; padding: .5rem .75rem; border-radius: .5rem .5rem 0 0; cursor:pointer }
     .tab.active{ border-color: rgba(255,255,255,.12); background: rgba(255,255,255,.05); }
@@ -63,6 +61,9 @@
     .toast { padding: .6rem .8rem; border-radius: .75rem; font-size: .9rem; }
     .toast-ok { background: rgba(34,197,94,.16); color: #bbf7d0; border: 1px solid rgba(34,197,94,.3); }
     .toast-err { background: rgba(239,68,68,.16); color: #fecaca; border: 1px solid rgba(239,68,68,.3); }
+
+    .qr-box{ display:flex; gap:16px; align-items:flex-start; }
+    .qr canvas{ width:240px !important; height:240px !important; image-rendering:pixelated; }
 
     .bar{ width: 100%; border-radius: 9999px; background: rgba(255,255,255,.08); overflow: hidden; position: relative; }
     .bar > span{ display:block; height:100%; background-image: linear-gradient(90deg, var(--brand1), var(--brand2), var(--brand3)); }
@@ -281,9 +282,12 @@
           <div class="space-y-2 max-w-xl">
             <input id="sabBaseUrl" class="w-full px-3 py-2 rounded bg-white/5 border" placeholder="Base URL (e.g., https://sab.zahariamedia.ca/)" />
             <input id="sabApiKey" class="w-full px-3 py-2 rounded bg-white/5 border" placeholder="API Key" />
-            <button id="saveSab" class="px-4 py-2 btn-brand text-white rounded">Save SAB Settings</button>
+            <div class="flex gap-2">
+              <button id="saveSab" class="px-4 py-2 btn-brand text-white rounded">Save SAB Settings</button>
+              <button id="testSab" class="px-4 py-2 bg-white/10 border border-white/10 rounded">Test connection</button>
+            </div>
           </div>
-        
+
           <h3 class="font-semibold mt-8 mb-2">Plex Settings</h3>
           <div class="space-y-2 max-w-xl">
             <input id="plexBaseUrl" class="w-full px-3 py-2 rounded bg-white/5 border"
@@ -294,7 +298,6 @@
               <button id="savePlex" class="px-4 py-2 btn-brand text-white rounded">Save Plex Settings</button>
               <button id="testPlex" class="px-4 py-2 bg-white/10 border border-white/10 rounded">Test connection</button>
             </div>
-            <pre id="plexTestResult" class="mono text-xs bg-black/40 border border-white/10 rounded p-2 whitespace-pre-wrap hidden"></pre>
           </div>
 
         </div>
@@ -425,7 +428,6 @@
 
   <!-- QR lib -->
   <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
-
   <script>
     const S = { token: null, me: null, sabPage: 1, sabPages: 1, sabTimer: null, npTimer: null, apps: [] };
     const $ = sel => document.querySelector(sel);
@@ -479,7 +481,19 @@
     // Tabs
     document.addEventListener('click', (e)=>{ const t=e.target.closest('.tab'); if(!t) return; document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active')); t.classList.add('active'); const k=t.dataset.tab; ['apps','users','invites'].forEach(name=> $('#tab-'+name)?.classList.toggle('hidden', name!==k)); });
 
-    function renderQRTo(container, text){ const box=$(container); if(!box) return; box.innerHTML=""; const c=document.createElement("canvas"); c.width=240; c.height=240; box.appendChild(c); try{ QRCode.toCanvas(c, text, { width:240, margin:1 }); }catch(e){ console.error(e); } }
+    function renderQRTo(container, text){
+      const box=$(container); if(!box) return;
+      box.innerHTML="";
+      const c=document.createElement("canvas");
+      c.width=240; c.height=240;
+      box.appendChild(c);
+      QRCode.toCanvas(
+        c,
+        text,
+        { width:240, margin:1, color:{ dark:'#000', light:'#fff' } },
+        err=>{ if(err) console.error(err); }
+      );
+    }
 
     async function copyToClipboard(t){ try{ await navigator.clipboard.writeText(t); }catch{ const ta=document.createElement("textarea"); ta.value=t; document.body.appendChild(ta); ta.select(); document.execCommand("copy"); ta.remove(); } toast('Copied to clipboard'); }
 
@@ -500,7 +514,21 @@
     // Register
     document.getElementById('registerForm').addEventListener('submit', async (e)=>{
       e.preventDefault(); const fd=new FormData(e.target); const body={ inviteCode:fd.get('inviteCode'), username:fd.get('username'), password:fd.get('password'), enableTotp:!!fd.get('enableTotp') };
-      try{ const { otpauth } = await api('/api/register', { method:'POST', body: JSON.stringify(body) }); if(otpauth){ $('#registerMfa').classList.remove('hidden'); renderQRTo('#qr', otpauth); $('#otpauth').textContent=otpauth; try{ const u=new URL(otpauth); $('#otpsecret').textContent=new URLSearchParams(u.search).get('secret')||''; }catch{} $('#copyOtpauth').onclick=()=>copyToClipboard(otpauth); $('#copySecret').onclick=()=>{ try{ const u=new URL(otpauth); copyToClipboard(new URLSearchParams(u.search).get('secret')||''); }catch{} }; } toast('Account created! You can now sign in.'); show('#view-login'); }
+      try{
+        const { otpauth, secret } = await api('/api/register', { method:'POST', body: JSON.stringify(body) });
+        if(otpauth && secret){
+          $('#registerMfa').classList.remove('hidden');
+          renderQRTo('#qr', otpauth);
+          $('#otpauth').textContent=otpauth;
+          $('#otpsecret').textContent=secret;
+          $('#copyOtpauth').onclick=()=>copyToClipboard(otpauth);
+          $('#copySecret').onclick=()=>copyToClipboard(secret);
+          toast('Account created! Scan the code or copy the setup details, then sign in.');
+        } else {
+          toast('Account created! You can now sign in.');
+          show('#view-login');
+        }
+      }
       catch(err){ toast(err.error||'Registration failed','err'); }
     });
     $('#btn-register-back').onclick = (e)=>{ e.preventDefault(); show('#view-login'); };
@@ -611,10 +639,26 @@
 
             // Delete buttons (delegated)
             wrap.querySelectorAll('button[data-del]').forEach(btn=>{
-              btn.onclick = async ()=>{
+              btn.onclick = ()=>{
                 const id = btn.getAttribute('data-del');
-                if(!confirm('Delete this app?')) return;
-                try { await api('/api/apps/'+encodeURIComponent(id), { method:'DELETE' }); toast('App deleted'); await loadApps(); renderTiles(); } catch(e){ toast(e.error||'Delete failed','err'); }
+                const nameInput = wrap.querySelector(`input[data-k="name"][data-key="${id}"]`);
+                const appName = nameInput?.value?.trim() || '';
+                Modal.open({
+                  title: 'Delete App',
+                  bodyHTML: 'Are you sure you want to delete "<span id="delAppName"></span>"?',
+                  confirmText: 'Delete',
+                  onOpen: ()=>{ $('#delAppName').textContent = appName; },
+                  onConfirm: async ()=>{
+                    try {
+                      await api('/api/apps/'+encodeURIComponent(id), { method:'DELETE' });
+                      toast('App deleted');
+                      await loadApps();
+                      renderTiles();
+                    } catch(e){
+                      toast(e.error||'Delete failed','err');
+                    }
+                  }
+                });
               };
             });
           };
@@ -636,14 +680,48 @@
         }
 
         // SAB settings
-        try{ const sabCfg=await api('/api/sab'); $('#sabBaseUrl').value=sabCfg.sab.baseUrl||''; $('#sabApiKey').value=sabCfg.sab.apiKey||''; $('#saveSab').onclick=async ()=>{ await api('/api/sab',{ method:'PUT', body: JSON.stringify({ baseUrl: $('#sabBaseUrl').value.trim(), apiKey: $('#sabApiKey').value.trim() }) }); toast('SAB settings saved'); }; }catch{}
+        try{
+          const sabCfg=await api('/api/sab');
+          $('#sabBaseUrl').value=sabCfg.sab.baseUrl||'';
+          $('#sabApiKey').value=sabCfg.sab.apiKey||'';
+          const saveSabBtn=$('#saveSab');
+          if(saveSabBtn){
+            saveSabBtn.onclick=async ()=>{
+              await api('/api/sab',{ method:'PUT', body: JSON.stringify({ baseUrl: $('#sabBaseUrl').value.trim(), apiKey: $('#sabApiKey').value.trim() }) });
+              toast('SAB settings saved');
+              $('#testSab')?.click();
+            };
+          }
+          const testSabBtn=$('#testSab');
+          if(testSabBtn){
+            testSabBtn.onclick=async ()=>{
+              try{ const r=await api('/api/sab/test'); if(r.ok) toast('SAB connection successful'); else toast(`SAB test failed (status ${r.status})`,'err'); }
+              catch(e){ toast(e.error||'SAB test failed','err'); }
+            };
+          }
+        }catch{}
 
         // Plex settings
         try{
           const plexCfg = await api('/api/plex');
           if (plexCfg && plexCfg.plex){ const tokInput=$('#plexToken'); const urlInput=$('#plexBaseUrl'); if(tokInput) tokInput.value = plexCfg.plex.token || ''; if(urlInput) urlInput.value = plexCfg.plex.baseUrl || ''; }
-          const savePlexBtn=$('#savePlex'); if (savePlexBtn){ savePlexBtn.onclick = async ()=>{ const token=($('#plexToken')?.value||'').trim(); let baseUrl=($('#plexBaseUrl')?.value||'').trim(); await api('/api/plex', { method:'PUT', body: JSON.stringify({ baseUrl, token }) }); toast('Plex settings saved'); if($('#testPlex')) $('#testPlex').click(); }; }
-          const testBtn=$('#testPlex'); if (testBtn){ testBtn.onclick = async ()=>{ const wrap=$('#plexTestResult'); if(wrap){ wrap.classList.remove('hidden'); wrap.textContent='Testing…'; } try{ const result=await api('/api/plex/test'); if(wrap) wrap.textContent=JSON.stringify(result,null,2); }catch(e){ if(wrap) wrap.textContent='Error: '+(e?.message||e); } }; }
+          const savePlexBtn=$('#savePlex');
+          if (savePlexBtn){
+            savePlexBtn.onclick = async ()=>{
+              const token=($('#plexToken')?.value||'').trim();
+              let baseUrl=($('#plexBaseUrl')?.value||'').trim();
+              await api('/api/plex', { method:'PUT', body: JSON.stringify({ baseUrl, token }) });
+              toast('Plex settings saved');
+              $('#testPlex')?.click();
+            };
+          }
+          const testBtn=$('#testPlex');
+          if (testBtn){
+            testBtn.onclick = async ()=>{
+              try{ const result=await api('/api/plex/test'); if(result.ok) toast('Plex connection successful'); else toast(`Plex test failed (status ${result.status})`,'err'); }
+              catch(e){ toast(e.error||'Plex test failed','err'); }
+            };
+          }
         }catch{}
 
         await renderUsers();
@@ -780,9 +858,44 @@
     function startNowPlayingPolling(){ clearInterval(S.npTimer); if(!shouldShowNowPlaying()){ $('#nowPlayingWrap').classList.add('hidden'); return; } fetchNowPlaying(); S.npTimer=setInterval(fetchNowPlaying, 5000); }
 
     function hasMfaEnabled(){ return !!(S.me && S.me.totpSecret); }
-    async function setupMfaUI(){ const box=$('#mfaBox'); if(!box) return; const enabled=hasMfaEnabled(); $('#mfaStatus').textContent = enabled ? 'Enabled' : 'Disabled'; $('#mfaStart').classList.toggle('hidden', enabled); $('#mfaDisable').classList.toggle('hidden', !enabled); $('#mfaSetup').classList.add('hidden'); $('#mfaStart').onclick = async ()=>{ try{ const r=await api('/api/me',{ method:'PUT', body: JSON.stringify({ mfaAction:'start' }) }); if(r.otpauth){ $('#mfaSetup').classList.remove('hidden'); $('#mfaOtpauth').textContent=r.otpauth; try{ const u=new URL(r.otpauth); $('#mfaSecret').textContent=new URLSearchParams(u.search).get('secret')||''; }catch{} renderQRTo('#mfaQr', r.otpauth); $('#mfaCopyLink').onclick=()=>copyToClipboard(r.otpauth); $('#mfaCopySecret').onclick=()=>{ try{ const u=new URL(r.otpauth); copyToClipboard(new URLSearchParams(u.search).get('secret')||''); }catch{} }; } }catch(e){ toast(e.error||'Failed to start setup','err'); } };
-      $('#mfaDisable').onclick = async ()=>{ if(!confirm('Disable authenticator app for this account?')) return; try{ const r=await api('/api/me',{ method:'PUT', body: JSON.stringify({ mfaAction:'disable' }) }); S.me=r.user; toast('MFA disabled'); setupMfaUI(); }catch(e){ toast(e.error||'Failed to disable','err'); } };
-      $('#mfaVerify').onclick = async ()=>{ const code=$('#mfaCode').value.trim(); if(!/^[0-9]{6}$/.test(code)){ toast('Enter the 6‑digit code from your app','err'); return; } try{ const r=await api('/api/me',{ method:'PUT', body: JSON.stringify({ mfaAction:'verify', code }) }); S.me=r.user; toast('MFA enabled and saved'); setupMfaUI(); }catch(e){ toast(e.error||'Verification failed','err'); } };
+    async function setupMfaUI(){
+      const box=$('#mfaBox'); if(!box) return;
+      const enabled=hasMfaEnabled();
+      $('#mfaStatus').textContent = enabled ? 'Enabled' : 'Disabled';
+      $('#mfaStart').classList.toggle('hidden', enabled);
+      $('#mfaDisable').classList.toggle('hidden', !enabled);
+      $('#mfaSetup').classList.add('hidden');
+      $('#mfaStart').onclick = async ()=>{
+        try{
+          const r=await api('/api/me',{ method:'PUT', body: JSON.stringify({ mfaAction:'start' }) });
+          if(r.otpauth && r.secret){
+            $('#mfaSetup').classList.remove('hidden');
+            renderQRTo('#mfaQr', r.otpauth);
+            $('#mfaOtpauth').textContent=r.otpauth;
+            $('#mfaSecret').textContent=r.secret;
+            $('#mfaCopyLink').onclick=()=>copyToClipboard(r.otpauth);
+            $('#mfaCopySecret').onclick=()=>copyToClipboard(r.secret);
+          }
+        }catch(e){ toast(e.error||'Failed to start setup','err'); }
+      };
+      $('#mfaDisable').onclick = async ()=>{
+        if(!confirm('Disable authenticator app for this account?')) return;
+        try{
+          const r=await api('/api/me',{ method:'PUT', body: JSON.stringify({ mfaAction:'disable' }) });
+          S.me=r.user; toast('MFA disabled'); setupMfaUI();
+        }catch(e){ toast(e.error||'Failed to disable','err'); }
+      };
+      $('#mfaVerify').onclick = async ()=>{
+        const code=$('#mfaCode').value.trim();
+        if(!/^[0-9]{6}$/.test(code)){
+          toast('Enter the 6‑digit code from your app','err');
+          return;
+        }
+        try{
+          const r=await api('/api/me',{ method:'PUT', body: JSON.stringify({ mfaAction:'verify', code }) });
+          S.me=r.user; toast('MFA enabled and saved'); setupMfaUI();
+        }catch(e){ toast(e.error||'Verification failed','err'); }
+      };
     }
 
     // Settings (profile + picture + prefs)
@@ -795,6 +908,7 @@
       try{ const r=await api('/api/me',{ method:'PUT', body: JSON.stringify(body) }); S.me=r.user; toast('Saved.'); const displayName=[S.me.firstName,S.me.lastName].filter(Boolean).join(' ')||S.me.username; $('#userName').textContent = displayName; const ua=$('#userAvatar'), ui=$('#userInitial'); if(S.me.profileImage){ ua.src=S.me.profileImage; ua.classList.remove('hidden'); ui.classList.add('hidden'); } else { ui.textContent = initialsFor(S.me); ui.classList.remove('hidden'); ua.classList.add('hidden'); } }
       catch(err){ toast(err.error||'Save failed','err'); }
     });
+    $('#btn-admin-close').onclick = ()=> show('#view-apps');
     $('#btn-settings-close').onclick = ()=> show('#view-apps');
 
     // SAB controls

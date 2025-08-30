@@ -66,9 +66,6 @@ app.use((req,res,next)=>{ res.setHeader('X-Powered-By','Zaharia Media'); next();
 // Static SPA
 const PUBLIC_DIR = path.join(__dirname, 'public');
 if (!fs.existsSync(PUBLIC_DIR)) fs.mkdirSync(PUBLIC_DIR, { recursive: true });
-const INDEX_SOURCE = path.join(__dirname, 'index.html');
-const INDEX_TARGET = path.join(PUBLIC_DIR, 'index.html');
-try { if (fs.existsSync(INDEX_SOURCE) && !fs.existsSync(INDEX_TARGET)) fs.copyFileSync(INDEX_SOURCE, INDEX_TARGET); } catch {}
 app.use(express.static(PUBLIC_DIR));
 
 // ---------------- Auth helpers ----------------
@@ -112,10 +109,10 @@ app.post('/api/register', async (req,res)=>{
   const nu = { username, passwordHash: await bcrypt.hash(String(password),10), role: inv.role||'user', firstName:'', lastName:'', profileImage:null, totpSecret: null, preferences:{ showNowPlaying:true, appOrder:[] }, createdAt: new Date().toISOString() };
   j.users.push(nu);
   inv.usedAt = new Date().toISOString(); inv.usedBy = username;
-  let otpauth = null;
-  if (enableTotp){ const secret = randomBase32(20); nu.totpSecret = secret; otpauth = makeOtpAuthURL(`${nu.username}@ZahariaMedia`, 'ZahariaMedia', secret); }
+  let otpauth = null, secret = null;
+  if (enableTotp){ secret = randomBase32(20); nu.totpSecret = secret; otpauth = makeOtpAuthURL(`${nu.username}@ZahariaMedia`, 'ZahariaMedia', secret); }
   save(j);
-  res.json({ ok:true, otpauth });
+  res.json({ ok:true, otpauth, secret });
 });
 
 // Password reset via admin-generated reset code
@@ -319,7 +316,7 @@ app.put('/api/me', authMiddleware, async (req,res)=>{
     save(j);
     const otpauth = makeOtpAuthURL(`${u.username}@ZahariaMedia`, 'ZahariaMedia', secret);
     const { passwordHash, ...userSafe } = u;
-    return res.json({ user: userSafe, otpauth });
+    return res.json({ user: userSafe, otpauth, secret });
   }
   if (mfaAction === 'verify'){
     if (!u.totpSecret) return res.status(400).json({ error:'No setup in progress' });
