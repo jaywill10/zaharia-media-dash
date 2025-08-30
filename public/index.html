@@ -481,7 +481,19 @@
     // Tabs
     document.addEventListener('click', (e)=>{ const t=e.target.closest('.tab'); if(!t) return; document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active')); t.classList.add('active'); const k=t.dataset.tab; ['apps','users','invites'].forEach(name=> $('#tab-'+name)?.classList.toggle('hidden', name!==k)); });
 
-    function renderQRTo(container, text){ const box=$(container); if(!box) return; box.innerHTML=""; const c=document.createElement("canvas"); c.width=240; c.height=240; box.appendChild(c); try{ QRCode.toCanvas(c, text, { width:240, margin:1 }); }catch(e){ console.error(e); } }
+    function renderQRTo(container, text){
+      const box=$(container); if(!box) return;
+      box.innerHTML="";
+      const c=document.createElement("canvas");
+      c.width=240; c.height=240;
+      box.appendChild(c);
+      QRCode.toCanvas(
+        c,
+        text,
+        { width:240, margin:1, color:{ dark:'#000', light:'#fff' } },
+        err=>{ if(err) console.error(err); }
+      );
+    }
 
     async function copyToClipboard(t){ try{ await navigator.clipboard.writeText(t); }catch{ const ta=document.createElement("textarea"); ta.value=t; document.body.appendChild(ta); ta.select(); document.execCommand("copy"); ta.remove(); } toast('Copied to clipboard'); }
 
@@ -502,7 +514,29 @@
     // Register
     document.getElementById('registerForm').addEventListener('submit', async (e)=>{
       e.preventDefault(); const fd=new FormData(e.target); const body={ inviteCode:fd.get('inviteCode'), username:fd.get('username'), password:fd.get('password'), enableTotp:!!fd.get('enableTotp') };
-      try{ const { otpauth } = await api('/api/register', { method:'POST', body: JSON.stringify(body) }); if(otpauth){ $('#registerMfa').classList.remove('hidden'); renderQRTo('#qr', otpauth); $('#otpauth').textContent=otpauth; try{ const u=new URL(otpauth); $('#otpsecret').textContent=new URLSearchParams(u.search).get('secret')||''; }catch{} $('#copyOtpauth').onclick=()=>copyToClipboard(otpauth); $('#copySecret').onclick=()=>{ try{ const u=new URL(otpauth); copyToClipboard(new URLSearchParams(u.search).get('secret')||''); }catch{} }; } toast('Account created! You can now sign in.'); show('#view-login'); }
+      try{
+        const { otpauth } = await api('/api/register', { method:'POST', body: JSON.stringify(body) });
+        if(otpauth){
+          $('#registerMfa').classList.remove('hidden');
+          renderQRTo('#qr', otpauth);
+          $('#otpauth').textContent=otpauth;
+          try{
+            const u=new URL(otpauth);
+            $('#otpsecret').textContent=new URLSearchParams(u.search).get('secret')||'';
+          }catch{}
+          $('#copyOtpauth').onclick=()=>copyToClipboard(otpauth);
+          $('#copySecret').onclick=()=>{
+            try{
+              const u=new URL(otpauth);
+              copyToClipboard(new URLSearchParams(u.search).get('secret')||'');
+            }catch{}
+          };
+          toast('Account created! Scan the code with your authenticator then sign in.');
+        } else {
+          toast('Account created! You can now sign in.');
+          show('#view-login');
+        }
+      }
       catch(err){ toast(err.error||'Registration failed','err'); }
     });
     $('#btn-register-back').onclick = (e)=>{ e.preventDefault(); show('#view-login'); };
