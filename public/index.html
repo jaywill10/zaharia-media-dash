@@ -611,10 +611,26 @@
 
             // Delete buttons (delegated)
             wrap.querySelectorAll('button[data-del]').forEach(btn=>{
-              btn.onclick = async ()=>{
+              btn.onclick = ()=>{
                 const id = btn.getAttribute('data-del');
-                if(!confirm('Delete this app?')) return;
-                try { await api('/api/apps/'+encodeURIComponent(id), { method:'DELETE' }); toast('App deleted'); await loadApps(); renderTiles(); } catch(e){ toast(e.error||'Delete failed','err'); }
+                const nameInput = wrap.querySelector(`input[data-k="name"][data-key="${id}"]`);
+                const appName = nameInput?.value?.trim() || '';
+                Modal.open({
+                  title: 'Delete App',
+                  bodyHTML: 'Are you sure you want to delete "<span id="delAppName"></span>"?',
+                  confirmText: 'Delete',
+                  onOpen: ()=>{ $('#delAppName').textContent = appName; },
+                  onConfirm: async ()=>{
+                    try {
+                      await api('/api/apps/'+encodeURIComponent(id), { method:'DELETE' });
+                      toast('App deleted');
+                      await loadApps();
+                      renderTiles();
+                    } catch(e){
+                      toast(e.error||'Delete failed','err');
+                    }
+                  }
+                });
               };
             });
           };
