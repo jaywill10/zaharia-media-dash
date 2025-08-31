@@ -5,7 +5,7 @@
 // - Invites admin (CRUD + erase history)
 // - Reset codes admin (CRUD + erase history)
 // - Per-user profile: firstName, lastName, profileImage, preferences (showNowPlaying, appOrder)
-// - MFA (TOTP) start/verify/disable (lightweight verification)
+// - MFA (TOTP) start/verify/disable
 // - Apps CRUD + bulk PUT, DELETE endpoint
 // - SABnzbd settings + /api/sab/queue (paged) + /api/sab/test
 // - Plex settings + /api/now-playing (JSON or XML) + /api/plex/test
@@ -18,6 +18,7 @@ import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import nodemailer from 'nodemailer';
+import { authenticator } from 'otplib';
 import { fileURLToPath } from 'url';
 import { init as initDb, load, save } from './db.js';
 
@@ -89,16 +90,12 @@ function authMiddleware(req,res,next){ const j=load(); const h=req.headers.autho
 function adminOnly(req,res,next){ if(req.user?.role!=='admin') return res.status(403).json({ error:'Admin only' }); next(); }
 
 // ---------------- Utilities ----------------
-function randomBase32(len = 20){
-  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
-  const bytes = crypto.randomBytes(len);
-  let out = '';
-  for (let i = 0; i < len; i++) out += alphabet[bytes[i] % alphabet.length];
-  return out;
+function generateTotpSecret(len = 20){ return authenticator.generateSecret(len); }
+function makeOtpAuthURL(label, issuer, secret){ return authenticator.keyuri(label, issuer, secret); }
+function totpVerify(secret, code){
+  try{ return authenticator.verify({ token: String(code||''), secret }); }
+  catch{ return false; }
 }
-function makeOtpAuthURL(label, issuer, secret){ const p=new URLSearchParams({ secret, issuer }); return `otpauth://totp/${encodeURIComponent(label)}?${p.toString()}`; }
-// Lightweight TOTP check (accept any 6 digits to avoid blocking real flow; swap with real TOTP if desired)
-function totpVerify(secret, code){ return /^[0-9]{6}$/.test(String(code||'')); }
 function normBase(u){ if(!u) return ''; let b=String(u).trim(); if(!/^https?:\/\//i.test(b)) b=`http://${b}`; return b.replace(/\/$/,''); }
 
 // ---------------- Auth routes ----------------
@@ -133,7 +130,7 @@ app.post('/api/register', async (req,res)=>{
   inv.usedAt = new Date().toISOString(); inv.usedBy = username;
   let otpauth = null, secret = null;
   if (enableTotp){
-    secret = randomBase32(20);
+    secret = generateTotpSecret(20);
     nu.totpSecret = secret;
     otpauth = makeOtpAuthURL(`${nu.username}@ZahariaMedia`, 'ZahariaMedia', secret);
   }
@@ -368,7 +365,7 @@ app.put('/api/me', authMiddleware, async (req,res)=>{
 
   // MFA flow
   if (mfaAction === 'start'){
-    const secret = randomBase32(20);
+    const secret = generateTotpSecret(20);
     u.totpSecret = secret;
     save(j);
     const otpauth = makeOtpAuthURL(`${u.username}@ZahariaMedia`, 'ZahariaMedia', secret);
