@@ -39,6 +39,8 @@ SMTP_FROM=dashboard@example.com
 APP_URL=http://192.168.1.182:8088
 ```
 
+Every user must register with a unique email address. Password recovery links are sent to that email, so configure SMTP before inviting users.
+
 ## GitHub setup
 1. Create a new GitHub repo (private or public).
 2. Commit these files plus your `app.mjs`, `public/` contents, and optional `data/` (usually excluded).

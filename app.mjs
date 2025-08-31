@@ -141,15 +141,16 @@ app.post('/api/logout', authMiddleware, (req,res)=> res.json({ ok:true }));
 // Register via invite
 app.post('/api/register', async (req,res)=>{
   const { inviteCode, username, password, email, enableTotp } = req.body||{};
-  if(!inviteCode || !username || !password || !email) return res.status(400).json({ error:'Missing fields' });
+  const emailStr = String(email||'').trim().toLowerCase();
+  if(!inviteCode || !username || !password || !emailStr) return res.status(400).json({ error:'Missing fields' });
   const j = load();
   const inv = (j.invites||[]).find(i=>i.code===inviteCode);
   if (!inv) return res.status(400).json({ error:'Invalid invite' });
   if (inv.usedAt) return res.status(400).json({ error:'Invite already used' });
   if (inv.expiresAt && new Date(inv.expiresAt) < new Date()) return res.status(400).json({ error:'Invite expired' });
   if (j.users.some(u=>u.username===username)) return res.status(400).json({ error:'Username already taken' });
-  if (j.users.some(u=>u.email===email)) return res.status(400).json({ error:'Email already used' });
-  const nu = { username, email: String(email).trim(), passwordHash: await bcrypt.hash(String(password),10), role: inv.role||'user', firstName:'', lastName:'', profileImage:null, totpSecret: null, preferences:{ showNowPlaying:true, appOrder:[] }, createdAt: new Date().toISOString() };
+  if (j.users.some(u=> (u.email||'').toLowerCase()===emailStr)) return res.status(400).json({ error:'Email already used' });
+  const nu = { username, email: emailStr, passwordHash: await bcrypt.hash(String(password),10), role: inv.role||'user', firstName:'', lastName:'', profileImage:null, totpSecret: null, preferences:{ showNowPlaying:true, appOrder:[] }, createdAt: new Date().toISOString() };
   j.users.push(nu);
   inv.usedAt = new Date().toISOString(); inv.usedBy = username;
   let otpauth = null, secret = null;
@@ -164,9 +165,10 @@ app.post('/api/register', async (req,res)=>{
 
 app.post('/api/forgot-password', async (req,res)=>{
   const { email } = req.body||{};
-  if(!email) return res.status(400).json({ error:'Email required' });
+  const emailStr = String(email||'').trim().toLowerCase();
+  if(!emailStr) return res.status(400).json({ error:'Email required' });
   const j = load();
-  const u = (j.users||[]).find(x=>x.email === String(email).trim());
+  const u = (j.users||[]).find(x=>(x.email||'').toLowerCase() === emailStr);
   if(!u){ return res.json({ ok:true }); }
   const token = crypto.randomBytes(20).toString('hex');
   const expiresAt = new Date(Date.now()+3600*1000).toISOString();
@@ -374,9 +376,9 @@ app.put('/api/me', authMiddleware, async (req,res)=>{
   if (typeof firstName === 'string') u.firstName = firstName.trim();
   if (typeof lastName === 'string')  u.lastName  = lastName.trim();
   if (typeof email === 'string'){
-    const e = email.trim();
+    const e = email.trim().toLowerCase();
     if(e && e !== u.email){
-      if((j.users||[]).some(x=>x.email===e && x.username!==u.username)) return res.status(400).json({ error:'Email already used' });
+      if((j.users||[]).some(x=>(x.email||'').toLowerCase()===e && x.username!==u.username)) return res.status(400).json({ error:'Email already used' });
       u.email = e;
     }
   }
