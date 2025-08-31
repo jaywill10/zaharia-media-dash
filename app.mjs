@@ -1,6 +1,6 @@
 // Zaharia Media Dashboard — Full Backend (app.mjs)
 // Matches the updated frontend (index.html) with:
-// - Auth (login/logout/register via invites, password reset via reset-codes)
+// - Auth (login/logout/register via invites, password reset via email links)
 // - Users admin (list, delete, toggle role)
 // - Invites admin (CRUD + erase history)
 // - Reset codes admin (CRUD + erase history)
@@ -28,26 +28,37 @@ const PORT = process.env.PORT || 8088;
 const HOST = '0.0.0.0';
 const APP_URL = (process.env.APP_URL || `http://localhost:${PORT}`).replace(/\/$/, '');
 
-const SMTP_HOST = process.env.SMTP_HOST || '';
-const SMTP_PORT = parseInt(process.env.SMTP_PORT || '587', 10);
-const SMTP_USER = process.env.SMTP_USER || '';
-const SMTP_PASS = process.env.SMTP_PASS || '';
-const SMTP_SECURE = process.env.SMTP_SECURE === 'true';
-const SMTP_FROM = process.env.SMTP_FROM || SMTP_USER || '';
+const SMTP_ENV = {
+  host: process.env.SMTP_HOST || '',
+  port: parseInt(process.env.SMTP_PORT || '587', 10),
+  user: process.env.SMTP_USER || '',
+  pass: process.env.SMTP_PASS || '',
+  secure: process.env.SMTP_SECURE === 'true',
+  from: process.env.SMTP_FROM || process.env.SMTP_USER || ''
+};
 
 let mailer = null;
-if (SMTP_HOST){
-  mailer = nodemailer.createTransport({
-    host: SMTP_HOST,
-    port: SMTP_PORT,
-    secure: SMTP_SECURE,
-    auth: SMTP_USER ? { user: SMTP_USER, pass: SMTP_PASS } : undefined
-  });
+function initMailer(){
+  const j = load();
+  const cfg = j.smtp || SMTP_ENV;
+  if (cfg.host){
+    mailer = nodemailer.createTransport({
+      host: cfg.host,
+      port: Number(cfg.port) || 587,
+      secure: !!cfg.secure,
+      auth: cfg.user ? { user: cfg.user, pass: cfg.pass } : undefined
+    });
+  } else {
+    mailer = null;
+  }
 }
 async function sendEmail(to, subject, text){
   if (!mailer) throw new Error('SMTP not configured');
-  await mailer.sendMail({ from: SMTP_FROM || undefined, to, subject, text });
+  const j = load();
+  const from = (j.smtp && j.smtp.from) || SMTP_ENV.from || undefined;
+  await mailer.sendMail({ from, to, subject, text });
 }
+initMailer();
 
 // ---------------- Data helpers ----------------
 function load(){
@@ -58,6 +69,7 @@ function load(){
         username: 'admin',
         passwordHash: bcrypt.hashSync('admin123', 10),
         role: 'admin',
+        email: '',
         firstName: '',
         lastName: '',
         profileImage: null,
@@ -66,11 +78,12 @@ function load(){
         createdAt: new Date().toISOString()
       } ],
       invites: [], // {code, role, createdAt, createdBy?, expiresAt?, usedBy?, usedAt?}
-      resetCodes: [], // {code, username, createdAt, expiresAt?, usedAt?}
+      passwordResets: [], // {token, username, createdAt, expiresAt?, usedAt?}
       apps: [],
       features: { showNowPlaying: true },
       sabnzbd: { baseUrl: '', apiKey: '' },
-      integrations: { plex: { baseUrl: '', token: '' } }
+      integrations: { plex: { baseUrl: '', token: '' } },
+      smtp: { host: SMTP_ENV.host, port: SMTP_ENV.port, secure: SMTP_ENV.secure, user: SMTP_ENV.user, pass: SMTP_ENV.pass, from: SMTP_ENV.from }
     };
     fs.mkdirSync(path.dirname(DATA_PATH), { recursive: true });
     fs.writeFileSync(DATA_PATH, JSON.stringify(initial, null, 2));
@@ -127,15 +140,16 @@ app.post('/api/logout', authMiddleware, (req,res)=> res.json({ ok:true }));
 
 // Register via invite
 app.post('/api/register', async (req,res)=>{
-  const { inviteCode, username, password, enableTotp } = req.body||{};
-  if(!inviteCode || !username || !password) return res.status(400).json({ error:'Missing fields' });
+  const { inviteCode, username, password, email, enableTotp } = req.body||{};
+  if(!inviteCode || !username || !password || !email) return res.status(400).json({ error:'Missing fields' });
   const j = load();
   const inv = (j.invites||[]).find(i=>i.code===inviteCode);
   if (!inv) return res.status(400).json({ error:'Invalid invite' });
   if (inv.usedAt) return res.status(400).json({ error:'Invite already used' });
   if (inv.expiresAt && new Date(inv.expiresAt) < new Date()) return res.status(400).json({ error:'Invite expired' });
   if (j.users.some(u=>u.username===username)) return res.status(400).json({ error:'Username already taken' });
-  const nu = { username, passwordHash: await bcrypt.hash(String(password),10), role: inv.role||'user', firstName:'', lastName:'', profileImage:null, totpSecret: null, preferences:{ showNowPlaying:true, appOrder:[] }, createdAt: new Date().toISOString() };
+  if (j.users.some(u=>u.email===email)) return res.status(400).json({ error:'Email already used' });
+  const nu = { username, email: String(email).trim(), passwordHash: await bcrypt.hash(String(password),10), role: inv.role||'user', firstName:'', lastName:'', profileImage:null, totpSecret: null, preferences:{ showNowPlaying:true, appOrder:[] }, createdAt: new Date().toISOString() };
   j.users.push(nu);
   inv.usedAt = new Date().toISOString(); inv.usedBy = username;
   let otpauth = null, secret = null;
@@ -148,19 +162,33 @@ app.post('/api/register', async (req,res)=>{
   return res.json({ ok:true, otpauth, secret });
 });
 
-// Password reset via admin-generated reset code
-app.post('/api/reset', async (req,res)=>{
-  const { code, newPassword } = req.body||{};
-  if(!code || !newPassword) return res.status(400).json({ error:'Missing fields' });
+app.post('/api/forgot-password', async (req,res)=>{
+  const { email } = req.body||{};
+  if(!email) return res.status(400).json({ error:'Email required' });
   const j = load();
-  const rc = (j.resetCodes||[]).find(r=>r.code===code);
-  if(!rc) return res.status(400).json({ error:'Invalid code' });
-  if (rc.usedAt) return res.status(400).json({ error:'Code already used' });
-  if (rc.expiresAt && new Date(rc.expiresAt) < new Date()) return res.status(400).json({ error:'Code expired' });
-  const u = (j.users||[]).find(x=>x.username===rc.username);
+  const u = (j.users||[]).find(x=>x.email === String(email).trim());
+  if(!u){ return res.json({ ok:true }); }
+  const token = crypto.randomBytes(20).toString('hex');
+  const expiresAt = new Date(Date.now()+3600*1000).toISOString();
+  j.passwordResets = j.passwordResets || [];
+  j.passwordResets.push({ token, username: u.username, createdAt:new Date().toISOString(), expiresAt });
+  save(j);
+  try{ await sendEmail(u.email, 'Password reset', `Reset your password: ${APP_URL}?token=${token}`); }catch{}
+  res.json({ ok:true });
+});
+
+app.post('/api/reset', async (req,res)=>{
+  const { token, newPassword } = req.body||{};
+  if(!token || !newPassword) return res.status(400).json({ error:'Missing fields' });
+  const j = load();
+  const pr = (j.passwordResets||[]).find(r=>r.token===token);
+  if(!pr) return res.status(400).json({ error:'Invalid token' });
+  if (pr.usedAt) return res.status(400).json({ error:'Token already used' });
+  if (pr.expiresAt && new Date(pr.expiresAt) < new Date()) return res.status(400).json({ error:'Token expired' });
+  const u = (j.users||[]).find(x=>x.username===pr.username);
   if(!u) return res.status(404).json({ error:'User not found' });
   u.passwordHash = await bcrypt.hash(String(newPassword),10);
-  rc.usedAt = new Date().toISOString();
+  pr.usedAt = new Date().toISOString();
   save(j);
   res.json({ ok:true });
 });
@@ -225,28 +253,6 @@ app.post('/api/invites/erase-history', authMiddleware, adminOnly, (req,res)=>{
 });
 
 // ---------------- Reset Codes (admin) ----------------
-app.get('/api/reset-codes', authMiddleware, adminOnly, (req,res)=>{ const j=load(); res.json({ resetCodes: j.resetCodes||[] }); });
-app.post('/api/reset-codes', authMiddleware, adminOnly, async (req,res)=>{
-  const { username, expiresAt=null, email } = req.body||{};
-  const j=load(); const u=(j.users||[]).find(x=>x.username===username); if(!u) return res.status(404).json({ error:'User not found' });
-  j.resetCodes=j.resetCodes||[];
-  const code = crypto.randomBytes(4).toString('hex');
-  j.resetCodes.push({ code, username, createdAt:new Date().toISOString(), expiresAt });
-  save(j);
-  if (email){
-    const link=`${APP_URL}/reset?code=${code}`;
-    try{
-      await sendEmail(email,'Password reset',`Use this link: ${link}\nOr code: ${code}`);
-      return res.json({ code, emailSent:true });
-    }catch(e){
-      console.error('Reset email failed', e);
-      return res.status(500).json({ error:'Failed to send email', code });
-    }
-  }
-  res.json({ code });
-});
-app.delete('/api/reset-codes/:code', authMiddleware, adminOnly, (req,res)=>{ const j=load(); j.resetCodes=(j.resetCodes||[]).filter(x=>x.code!==req.params.code); save(j); res.json({ ok:true }); });
-app.post('/api/reset-codes/erase-history', authMiddleware, adminOnly, (req,res)=>{ const j=load(); j.resetCodes=[]; save(j); res.json({ ok:true }); });
 
 // ---------------- Apps ----------------
 app.get('/api/apps', authMiddleware, (req,res)=>{ const j=load(); const isAdmin=req.user.role==='admin'; const toClient=a=>({ key:a.key||a.id, name:a.name||'', url:a.url||'', logo:a.logo||a.icon||'', hidden:!!a.hidden, category:a.category||'' }); let apps=(j.apps||[]).map(toClient); if(!isAdmin) apps=apps.filter(a=>!a.hidden && !(a._hidden)); res.json({ apps }); });
@@ -302,6 +308,11 @@ app.get('/api/plex', authMiddleware, adminOnly, (req,res)=>{ const j=load(); res
 app.put('/api/plex', authMiddleware, adminOnly, (req,res)=>{ const { baseUrl, token } = req.body||{}; const j=load(); j.integrations=j.integrations||{}; j.integrations.plex=j.integrations.plex||{ baseUrl:'', token:'' }; if(baseUrl!==undefined) j.integrations.plex.baseUrl=String(baseUrl); if(token!==undefined) j.integrations.plex.token=String(token); save(j); res.json({ ok:true }); });
 app.get('/api/plex/test', authMiddleware, adminOnly, async (req,res)=>{ const j=load(); let { baseUrl, token } = j.integrations?.plex||{}; if(!baseUrl||!token) return res.status(400).json({ ok:false, error:'Missing baseUrl or token' }); if(!/^https?:\/\//i.test(baseUrl)) baseUrl=`http://${baseUrl}`; baseUrl=baseUrl.replace(/\/+$/,''); const url=`${baseUrl}/status/sessions?X-Plex-Token=${encodeURIComponent(token)}`; try{ const r=await fetch(url,{ headers:{ 'Accept':'application/json','X-Plex-Token':token } }); const ct=r.headers.get('content-type')||''; const body=await r.text(); res.json({ ok:r.ok, status:r.status, url, contentType:ct, sample: body.slice(0,2000) }); } catch(e){ res.json({ ok:false, error:String(e), url }); }
 });
+
+// SMTP settings
+app.get('/api/smtp', authMiddleware, adminOnly, (req,res)=>{ const j=load(); const s=j.smtp||{ host:'', port:587, secure:false, user:'', from:'', pass:'' }; res.json({ smtp: { host:s.host||'', port:s.port||587, secure:!!s.secure, user:s.user||'', from:s.from||'' } }); });
+app.put('/api/smtp', authMiddleware, adminOnly, (req,res)=>{ const { host, port, user, pass, secure, from } = req.body||{}; const j=load(); j.smtp=j.smtp||{ host:'', port:587, secure:false, user:'', pass:'', from:'' }; if(host!==undefined) j.smtp.host=String(host); if(port!==undefined) j.smtp.port=Number(port)||587; if(user!==undefined) j.smtp.user=String(user); if(pass!==undefined) j.smtp.pass=String(pass); if(secure!==undefined) j.smtp.secure=!!secure; if(from!==undefined) j.smtp.from=String(from); save(j); initMailer(); res.json({ ok:true }); });
+app.post('/api/smtp/test', authMiddleware, adminOnly, async (req,res)=>{ try{ const j=load(); const to=j.smtp?.from||j.smtp?.user; if(!to) return res.status(400).json({ ok:false, error:'No from address configured' }); await sendEmail(to,'SMTP test','This is a test email from Zaharia Media Dashboard'); res.json({ ok:true }); }catch(e){ res.status(400).json({ ok:false, error:String(e) }); } });
 app.get('/api/now-playing', authMiddleware, async (req,res)=>{
   const j=load(); const plex=j.integrations?.plex||{}; let base=(plex.baseUrl||'').trim(); const token=(plex.token||'').trim(); if(!base||!token) return res.json({ sessions: [] }); if(!/^https?:\/\//i.test(base)) base=`http://${base}`; base=base.replace(/\/+$/,''); const url=`${base}/status/sessions?X-Plex-Token=${encodeURIComponent(token)}`;
   try{
@@ -349,7 +360,7 @@ app.get('/api/features', authMiddleware, (req,res)=>{ const j=load(); res.json({
 app.put('/api/features', authMiddleware, adminOnly, (req,res)=>{ const { showNowPlaying } = req.body||{}; const j=load(); j.features=j.features||{ showNowPlaying:true }; if(showNowPlaying!==undefined) j.features.showNowPlaying=!!showNowPlaying; save(j); res.json({ ok:true }); });
 app.get('/api/me', authMiddleware, (req,res)=>{ const j=load(); const u=j.users.find(x=>x.username===req.user.username); if(!u) return res.status(404).json({ error:'Not found' }); const { passwordHash, ...safe } = u; res.json({ user: safe }); });
 app.put('/api/me', authMiddleware, async (req,res)=>{
-  const { username, password, profileImage, mfaAction, code, preferences, appOrder, firstName, lastName } = req.body || {};
+  const { username, password, profileImage, mfaAction, code, preferences, appOrder, firstName, lastName, email } = req.body || {};
   const j = load();
   const u = j.users.find(x => x.username === req.user.username);
   if (!u) return res.status(404).json({ error: 'Not found' });
@@ -362,6 +373,13 @@ app.put('/api/me', authMiddleware, async (req,res)=>{
   if (typeof profileImage === 'string' && profileImage.startsWith('data:image/')) u.profileImage = profileImage;
   if (typeof firstName === 'string') u.firstName = firstName.trim();
   if (typeof lastName === 'string')  u.lastName  = lastName.trim();
+  if (typeof email === 'string'){
+    const e = email.trim();
+    if(e && e !== u.email){
+      if((j.users||[]).some(x=>x.email===e && x.username!==u.username)) return res.status(400).json({ error:'Email already used' });
+      u.email = e;
+    }
+  }
 
   // Preferences
   u.preferences = u.preferences || {};
