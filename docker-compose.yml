@@ -11,6 +11,14 @@ services:
     environment:
       - NODE_ENV=production
       # Add any app env vars here, e.g. PLEX_TOKEN=..., SAB_API_KEY=...
+      # SMTP configuration
+      # - SMTP_HOST=smtp.example.com
+      # - SMTP_PORT=587
+      # - SMTP_USER=username
+      # - SMTP_PASS=password
+      # - SMTP_SECURE=true
+      # - SMTP_FROM=dashboard@example.com
+      # - APP_URL=http://192.168.1.182:8088
     restart: unless-stopped
 
     # Persist runtime data if your app writes to /app/data

@@ -17,6 +17,7 @@ import path from 'path';
 import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import nodemailer from 'nodemailer';
 import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -25,6 +26,33 @@ const __dirname = path.dirname(__filename);
 const DATA_PATH = process.env.DATA_PATH || '/data/data.json';
 const PORT = process.env.PORT || 8088;
 const HOST = '0.0.0.0';
+const APP_URL = (process.env.APP_URL || `http://localhost:${PORT}`).replace(/\/$/, '');
+
+let smtpCfg = {
+  host: process.env.SMTP_HOST || '',
+  port: parseInt(process.env.SMTP_PORT || '587', 10),
+  user: process.env.SMTP_USER || '',
+  pass: process.env.SMTP_PASS || '',
+  secure: process.env.SMTP_SECURE === 'true',
+  from: process.env.SMTP_FROM || process.env.SMTP_USER || ''
+};
+let mailer = null;
+function refreshMailer(){
+  if (smtpCfg.host){
+    mailer = nodemailer.createTransport({
+      host: smtpCfg.host,
+      port: smtpCfg.port,
+      secure: !!smtpCfg.secure,
+      auth: smtpCfg.user ? { user: smtpCfg.user, pass: smtpCfg.pass } : undefined
+    });
+  } else {
+    mailer = null;
+  }
+}
+async function sendEmail(to, subject, text){
+  if (!mailer) throw new Error('SMTP not configured');
+  await mailer.sendMail({ from: smtpCfg.from || undefined, to, subject, text });
+}
 
 // ---------------- Data helpers ----------------
 function load(){
@@ -47,7 +75,8 @@ function load(){
       apps: [],
       features: { showNowPlaying: true },
       sabnzbd: { baseUrl: '', apiKey: '' },
-      integrations: { plex: { baseUrl: '', token: '' } }
+      integrations: { plex: { baseUrl: '', token: '' } },
+      smtp: { host: '', port: 587, secure: false, user: '', pass: '', from: '' }
     };
     fs.mkdirSync(path.dirname(DATA_PATH), { recursive: true });
     fs.writeFileSync(DATA_PATH, JSON.stringify(initial, null, 2));
@@ -56,6 +85,10 @@ function load(){
   return JSON.parse(fs.readFileSync(DATA_PATH, 'utf8'));
 }
 function save(j){ fs.writeFileSync(DATA_PATH, JSON.stringify(j, null, 2)); }
+
+const initCfg = load();
+if (initCfg.smtp) Object.assign(smtpCfg, initCfg.smtp);
+refreshMailer();
 
 // ---------------- Server bootstrap ----------------
 const app = express();
@@ -175,12 +208,22 @@ app.delete('/api/users/:username', authMiddleware, adminOnly, (req,res)=>{
 
 // ---------------- Invites (admin) ----------------
 app.get('/api/invites', authMiddleware, adminOnly, (req,res)=>{ const j=load(); res.json({ invites: j.invites||[] }); });
-app.post('/api/invites', authMiddleware, adminOnly, (req,res)=>{
-  const { role='user', expiresAt=null } = req.body||{};
+app.post('/api/invites', authMiddleware, adminOnly, async (req,res)=>{
+  const { role='user', expiresAt=null, email } = req.body||{};
   const j=load(); j.invites=j.invites||[];
   const code = crypto.randomBytes(4).toString('hex');
   j.invites.push({ code, role, createdAt: new Date().toISOString(), createdBy: req.user.username, expiresAt });
   save(j);
+  if (email){
+    const link=`${APP_URL}/register?inviteCode=${code}`;
+    try{
+      await sendEmail(email,'Zaharia Media invite',`Use this link: ${link}`);
+      return res.json({ code, emailSent:true });
+    }catch(e){
+      console.error('Invite email failed', e);
+      return res.status(500).json({ error:'Failed to send email', code });
+    }
+  }
   res.json({ code });
 });
 app.delete('/api/invites/:code', authMiddleware, adminOnly, (req,res)=>{ const j=load(); j.invites=(j.invites||[]).filter(x=>x.code!==req.params.code); save(j); res.json({ ok:true }); });
@@ -193,13 +236,23 @@ app.post('/api/invites/erase-history', authMiddleware, adminOnly, (req,res)=>{
 
 // ---------------- Reset Codes (admin) ----------------
 app.get('/api/reset-codes', authMiddleware, adminOnly, (req,res)=>{ const j=load(); res.json({ resetCodes: j.resetCodes||[] }); });
-app.post('/api/reset-codes', authMiddleware, adminOnly, (req,res)=>{
-  const { username, expiresAt=null } = req.body||{};
+app.post('/api/reset-codes', authMiddleware, adminOnly, async (req,res)=>{
+  const { username, expiresAt=null, email } = req.body||{};
   const j=load(); const u=(j.users||[]).find(x=>x.username===username); if(!u) return res.status(404).json({ error:'User not found' });
   j.resetCodes=j.resetCodes||[];
   const code = crypto.randomBytes(4).toString('hex');
   j.resetCodes.push({ code, username, createdAt:new Date().toISOString(), expiresAt });
   save(j);
+  if (email){
+    const link=`${APP_URL}/reset?code=${code}`;
+    try{
+      await sendEmail(email,'Password reset',`Use this link: ${link}\nOr code: ${code}`);
+      return res.json({ code, emailSent:true });
+    }catch(e){
+      console.error('Reset email failed', e);
+      return res.status(500).json({ error:'Failed to send email', code });
+    }
+  }
   res.json({ code });
 });
 app.delete('/api/reset-codes/:code', authMiddleware, adminOnly, (req,res)=>{ const j=load(); j.resetCodes=(j.resetCodes||[]).filter(x=>x.code!==req.params.code); save(j); res.json({ ok:true }); });
@@ -259,6 +312,11 @@ app.get('/api/plex', authMiddleware, adminOnly, (req,res)=>{ const j=load(); res
 app.put('/api/plex', authMiddleware, adminOnly, (req,res)=>{ const { baseUrl, token } = req.body||{}; const j=load(); j.integrations=j.integrations||{}; j.integrations.plex=j.integrations.plex||{ baseUrl:'', token:'' }; if(baseUrl!==undefined) j.integrations.plex.baseUrl=String(baseUrl); if(token!==undefined) j.integrations.plex.token=String(token); save(j); res.json({ ok:true }); });
 app.get('/api/plex/test', authMiddleware, adminOnly, async (req,res)=>{ const j=load(); let { baseUrl, token } = j.integrations?.plex||{}; if(!baseUrl||!token) return res.status(400).json({ ok:false, error:'Missing baseUrl or token' }); if(!/^https?:\/\//i.test(baseUrl)) baseUrl=`http://${baseUrl}`; baseUrl=baseUrl.replace(/\/+$/,''); const url=`${baseUrl}/status/sessions?X-Plex-Token=${encodeURIComponent(token)}`; try{ const r=await fetch(url,{ headers:{ 'Accept':'application/json','X-Plex-Token':token } }); const ct=r.headers.get('content-type')||''; const body=await r.text(); res.json({ ok:r.ok, status:r.status, url, contentType:ct, sample: body.slice(0,2000) }); } catch(e){ res.json({ ok:false, error:String(e), url }); }
 });
+
+// ---------------- SMTP ----------------
+app.get('/api/smtp', authMiddleware, adminOnly, (req,res)=>{ const j=load(); const cfg=j.smtp||{ host:'', port:587, secure:false, user:'', pass:'', from:'' }; res.json({ smtp: Object.assign({ host:'', port:587, secure:false, user:'', pass:'', from:'' }, cfg) }); });
+app.put('/api/smtp', authMiddleware, adminOnly, (req,res)=>{ const { host, port, user, pass, secure, from } = req.body||{}; const j=load(); j.smtp=j.smtp||{ host:'', port:587, secure:false, user:'', pass:'', from:'' }; if(host!==undefined) j.smtp.host=String(host); if(port!==undefined) j.smtp.port=parseInt(port,10)||0; if(user!==undefined) j.smtp.user=String(user); if(pass!==undefined) j.smtp.pass=String(pass); if(secure!==undefined) j.smtp.secure=!!secure; if(from!==undefined) j.smtp.from=String(from); save(j); Object.assign(smtpCfg, j.smtp); refreshMailer(); res.json({ ok:true }); });
+
 app.get('/api/now-playing', authMiddleware, async (req,res)=>{
   const j=load(); const plex=j.integrations?.plex||{}; let base=(plex.baseUrl||'').trim(); const token=(plex.token||'').trim(); if(!base||!token) return res.json({ sessions: [] }); if(!/^https?:\/\//i.test(base)) base=`http://${base}`; base=base.replace(/\/+$/,''); const url=`${base}/status/sessions?X-Plex-Token=${encodeURIComponent(token)}`;
   try{
