@@ -10,3 +10,4 @@ dist/
 build/
 coverage/
 *.local
+*.sqlite

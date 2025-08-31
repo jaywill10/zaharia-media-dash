@@ -5,12 +5,14 @@
   "type": "module",
   "main": "app.mjs",
   "scripts": {
-    "start": "node app.mjs"
+    "start": "node app.mjs",
+    "migrate": "node scripts/migrate.mjs"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
     "express": "^4.19.2",
     "jsonwebtoken": "^9.0.2",
-    "nodemailer": "^7.0.6"
+    "nodemailer": "^7.0.6",
+    "sql.js": "^1.13.0"
   }
 }
