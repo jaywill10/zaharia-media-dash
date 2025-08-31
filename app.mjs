@@ -142,7 +142,13 @@ app.patch('/api/users/:username', authMiddleware, adminOnly, (req,res)=>{
   const j = load();
   const u = (j.users||[]).find(x=>x.username===req.params.username);
   if(!u) return res.status(404).json({ error:'Not found' });
-  if (role && (role==='admin' || role==='user')) u.role = role;
+  if (role && (role==='admin' || role==='user')) {
+    if (role === 'user' && u.role === 'admin') {
+      const adminCount = (j.users||[]).filter(x=>x.role==='admin').length;
+      if (adminCount <= 1) return res.status(400).json({ error:'At least one admin required' });
+    }
+    u.role = role;
+  }
   save(j);
   res.json({ ok:true });
 });

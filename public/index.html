@@ -728,6 +728,7 @@
       const ul = $('#usersList'); if (!ul) return;
       const [usersRes, rcRes] = await Promise.all([ api('/api/users'), api('/api/reset-codes') ]);
       const rcByUser = groupResetCodesByUser(rcRes.resetCodes);
+      const adminCount = usersRes.users.filter(u=>u.role==='admin').length;
 
       ul.innerHTML='';
       for(const u of usersRes.users){
@@ -777,7 +778,10 @@
             </div>
           </div>`;
 
-        row.querySelector('[data-act="promote"]').onclick = async ()=>{ const newRole = u.role==='admin'?'user':'admin'; try{ await api(`/api/users/${u.username}`, { method:'PATCH', body: JSON.stringify({ role:newRole })}); toast('Role updated'); await renderUsers(); }catch(e){ toast(e.error||'Update failed','err'); } };
+        const promoteBtn = row.querySelector('[data-act="promote"]');
+        promoteBtn.disabled = adminCount <= 1 && u.role === 'admin';
+        promoteBtn.classList.toggle('opacity-50', promoteBtn.disabled);
+        promoteBtn.onclick = async ()=>{ const newRole = u.role==='admin'?'user':'admin'; try{ await api(`/api/users/${u.username}`, { method:'PATCH', body: JSON.stringify({ role:newRole })}); toast('Role updated'); await renderUsers(); }catch(e){ toast(e.error||'Update failed','err'); } };
         row.querySelector('[data-act="genreset"]').onclick = ()=> openResetModal(u.username);
         row.querySelector('[data-act="delete"]').onclick = async ()=>{ if(!confirm(`Delete user ${u.username}? This cannot be undone.`)) return; try{ await api(`/api/users/${encodeURIComponent(u.username)}`, { method:'DELETE' }); toast('User deleted'); await renderUsers(); }catch(e){ toast(e.error||'Delete failed','err'); } };
         row.querySelectorAll('.del-code').forEach(b=> b.onclick = async ()=>{ if(!confirm('Delete this reset code?')) return; await api(`/api/reset-codes/${b.dataset.code}`, { method:'DELETE' }); toast('Reset code deleted'); await renderUsers(); });
