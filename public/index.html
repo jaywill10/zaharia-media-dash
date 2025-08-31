@@ -550,9 +550,9 @@
     document.getElementById('registerForm').addEventListener('submit', async (e)=>{
       e.preventDefault();
       const fd=new FormData(e.target);
-      const username=fd.get('username');
+      const username=(fd.get('username')||'').trim();
       const password=fd.get('password');
-      const email=fd.get('email');
+      const email=(fd.get('email')||'').trim().toLowerCase();
       const body={ inviteCode:fd.get('inviteCode'), username, password, email, enableTotp:!!fd.get('enableTotp') };
       try{
         const { otpauth, secret } = await api('/api/register', { method:'POST', body: JSON.stringify(body) });
@@ -591,7 +591,8 @@
     // Forgot password
     document.getElementById('forgotForm').addEventListener('submit', async (e)=>{
       e.preventDefault(); const fd=new FormData(e.target);
-      try{ await api('/api/forgot-password', { method:'POST', body: JSON.stringify({ email: fd.get('email') }) }); toast('If the email exists, a reset link has been sent.'); show('#view-login'); }
+      const email=(fd.get('email')||'').trim().toLowerCase();
+      try{ await api('/api/forgot-password', { method:'POST', body: JSON.stringify({ email }) }); toast('If the email exists, a reset link has been sent.'); show('#view-login'); }
       catch(err){ toast(err.error||'Request failed','err'); }
     });
     $('#btn-forgot-back').onclick = (e)=>{ e.preventDefault(); show('#view-login'); };
