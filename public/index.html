@@ -530,11 +530,11 @@
           e.target.classList.add('hidden');
           const wrap=$('#registerMfa');
           wrap.classList.remove('hidden');
-          renderQRTo('#qr', otpauth);
-          $('#otpauth').textContent=otpauth;
-          $('#otpsecret').textContent=sec;
-          $('#copyOtpauth').onclick=()=>copyToClipboard(otpauth);
-          $('#copySecret').onclick=()=>copyToClipboard(sec);
+          $('#otpauth').textContent = otpauth;
+          $('#otpsecret').textContent = sec;
+          $('#copyOtpauth').onclick = ()=>copyToClipboard(otpauth);
+          $('#copySecret').onclick = ()=>copyToClipboard(sec);
+          try{ renderQRTo('#qr', otpauth); }catch(err){ console.error(err); }
           const otpInput=$('#registerOtp');
           $('#registerVerify').onclick=async ()=>{
             const code=(otpInput.value||'').trim();
