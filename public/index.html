@@ -159,9 +159,9 @@
             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 opacity-80 group-hover:opacity-100" viewBox="0 0 24 24" fill="currentColor"><path d="M21 8.5c0-.8-.4-1.5-1.1-1.9l-6.8-3.9c-.7-.4-1.5-.4-2.2 0L4.1 6.6C3.4 7 3 7.7 3 8.5v7c0 .8.4 1.5 1.1 1.9l6.8 3.9c.7.4 1.5.4 2.2 0l6.8-3.9c.7-.4 1.1-1.1 1.1-1.9v-7ZM12 7a1 1 0 0 1 1 1v2h2a1 1 0 1 1 0 2h-2v2a1 1 0 1 1-2 0v-2H9a1 1 0 1 1 0-2h2V8a1 1 0 0 1 1-1Z"/></svg>
             <span>Have an invite code?</span>
           </button>
-          <button type="button" id="btn-reset" class="btn-ghost w-full group flex items-center justify-center gap-2 px-3 py-2 rounded-lg border border-white/15 bg-white/5 hover:bg-white/10 transition">
+          <button type="button" id="btn-forgot" class="btn-ghost w-full group flex items-center justify-center gap-2 px-3 py-2 rounded-lg border border-white/15 bg-white/5 hover:bg-white/10 transition">
             <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 opacity-80 group-hover:opacity-100" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 1 0 10 10 1 1 0 0 0-2 0 8 8 0 1 1-8-8 1 1 0 0 0 0-2Zm1 6a1 1 0 0 0-2 0v3.59l-1.3 1.3a1 1 0 1 0 1.4 1.42l1.6-1.6A1 1 0 0 0 13 12Z"/></svg>
-            <span>Have a recovery code?</span>
+            <span>Forgot your password?</span>
           </button>
         </div>
       </section>
@@ -172,6 +172,7 @@
         <form id="registerForm" class="space-y-3" method="post">
           <input name="inviteCode" class="w-full px-3 py-2 rounded bg-white/5 border" placeholder="Invite code" required />
           <input name="username" class="w-full px-3 py-2 rounded bg-white/5 border" placeholder="Username" required />
+          <input name="email" type="email" class="w-full px-3 py-2 rounded bg-white/5 border" placeholder="Email" required />
           <input name="password" type="password" class="w-full px-3 py-2 rounded bg-white/5 border" placeholder="Password" required />
           <label class="flex items-center gap-2 text-sm select-none">
             <input type="checkbox" name="enableTotp" /> <span>Enable one-time passcode (TOTP)</span>
@@ -205,11 +206,20 @@
         <div class="mt-4"><button type="button" id="btn-register-back" class="underline">Back to sign in</button></div>
       </section>
 
+      <!-- Forgot View -->
+      <section id="view-forgot" class="hidden max-w-md mx-auto glass rounded-2xl p-6 shadow-xl">
+        <h2 class="text-xl font-semibold mb-4">Forgot password</h2>
+        <form id="forgotForm" class="space-y-3" method="post">
+          <input name="email" type="email" class="w-full px-3 py-2 rounded bg-white/5 border" placeholder="Your email" required />
+          <button type="submit" class="w-full py-2 rounded btn-brand text-white font-semibold">Send reset link</button>
+        </form>
+        <div class="mt-4"><button type="button" id="btn-forgot-back" class="underline">Back to sign in</button></div>
+      </section>
+
       <!-- Reset View -->
       <section id="view-reset" class="hidden max-w-md mx-auto glass rounded-2xl p-6 shadow-xl">
         <h2 class="text-xl font-semibold mb-4">Reset password</h2>
         <form id="resetForm" class="space-y-3" method="post">
-          <input name="code" class="w-full px-3 py-2 rounded bg-white/5 border" placeholder="Admin-provided recovery code" required />
           <input name="password" type="password" class="w-full px-3 py-2 rounded bg-white/5 border" placeholder="New password" required />
           <button type="submit" class="w-full py-2 rounded btn-brand text-white font-semibold">Reset</button>
         </form>
@@ -302,6 +312,22 @@
             <div class="flex gap-2">
               <button id="savePlex" class="px-4 py-2 btn-brand text-white rounded">Save Plex Settings</button>
               <button id="testPlex" class="px-4 py-2 bg-white/10 border border-white/10 rounded">Test connection</button>
+            </div>
+          </div>
+
+          <h3 class="font-semibold mt-8 mb-2">SMTP Settings</h3>
+          <div class="space-y-2 max-w-xl">
+            <input id="smtpHost" class="w-full px-3 py-2 rounded bg-white/5 border" placeholder="SMTP Host" />
+            <input id="smtpPort" type="number" class="w-full px-3 py-2 rounded bg-white/5 border" placeholder="Port" />
+            <label class="flex items-center gap-2 text-sm select-none">
+              <input type="checkbox" id="smtpSecure" /> <span>Use TLS</span>
+            </label>
+            <input id="smtpUser" class="w-full px-3 py-2 rounded bg-white/5 border" placeholder="Username" />
+            <input id="smtpPass" type="password" class="w-full px-3 py-2 rounded bg-white/5 border" placeholder="Password" />
+            <input id="smtpFrom" class="w-full px-3 py-2 rounded bg-white/5 border" placeholder="From email" />
+            <div class="flex gap-2">
+              <button id="saveSmtp" class="px-4 py-2 btn-brand text-white rounded">Save SMTP Settings</button>
+              <button id="testSmtp" class="px-4 py-2 bg-white/10 border border-white/10 rounded">Send test email</button>
             </div>
           </div>
 
@@ -434,7 +460,7 @@
   <!-- QR lib -->
   <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
   <script>
-    const S = { token: null, me: null, sabPage: 1, sabPages: 1, sabTimer: null, npTimer: null, apps: [] };
+    const S = { token: null, me: null, sabPage: 1, sabPages: 1, sabTimer: null, npTimer: null, apps: [], resetToken: null };
     const $ = sel => document.querySelector(sel);
 
     function clearUrlParams(){ try { if (history.replaceState) history.replaceState(null, '', location.pathname); } catch {}
@@ -462,12 +488,16 @@
     };
 
     function show(id){
-      for (const s of ["#view-login","#view-register","#view-reset","#view-apps","#view-admin","#view-settings"]) {
+      for (const s of ["#view-login","#view-register","#view-forgot","#view-reset","#view-apps","#view-admin","#view-settings"]) {
         const el = $(s); if (el) el.classList.add("hidden");
       }
       const tgt = $(id); if (tgt) tgt.classList.remove("hidden");
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
+
+    const qs=new URLSearchParams(location.search);
+    const rt=qs.get('token');
+    if(rt){ S.resetToken=rt; show('#view-reset'); }
 
     // Time helpers
     function fmtTime(sec){ if (sec==null||!isFinite(sec)) return '0:00'; sec=Math.max(0,Math.floor(sec)); const h=Math.floor(sec/3600); const m=Math.floor((sec%3600)/60); const s=sec%60; return (h?`${h}:${String(m).padStart(2,'0')}`:`${m}`)+`:${String(s).padStart(2,'0')}`; }
@@ -514,7 +544,7 @@
       catch(err){ if(err && err.error==='MFA code required'){ const w=$('#otpWrap'); if(w){ w.classList.remove('hidden'); w.querySelector('input[name="otp"]').focus(); } return; } (errBox||{}).textContent = (err && (err.error||err.message)) ? (err.error||err.message) : 'Login failed'; }
     });
     $('#btn-register').onclick = (e)=>{ e.preventDefault(); show('#view-register'); };
-    $('#btn-reset').onclick    = (e)=>{ e.preventDefault(); show('#view-reset'); };
+    $('#btn-forgot').onclick   = (e)=>{ e.preventDefault(); show('#view-forgot'); };
 
     // Register
     document.getElementById('registerForm').addEventListener('submit', async (e)=>{
@@ -522,7 +552,8 @@
       const fd=new FormData(e.target);
       const username=fd.get('username');
       const password=fd.get('password');
-      const body={ inviteCode:fd.get('inviteCode'), username, password, enableTotp:!!fd.get('enableTotp') };
+      const email=fd.get('email');
+      const body={ inviteCode:fd.get('inviteCode'), username, password, email, enableTotp:!!fd.get('enableTotp') };
       try{
         const { otpauth, secret } = await api('/api/register', { method:'POST', body: JSON.stringify(body) });
         if(otpauth){
@@ -557,13 +588,21 @@
     });
     $('#btn-register-back').onclick = (e)=>{ e.preventDefault(); show('#view-login'); };
 
+    // Forgot password
+    document.getElementById('forgotForm').addEventListener('submit', async (e)=>{
+      e.preventDefault(); const fd=new FormData(e.target);
+      try{ await api('/api/forgot-password', { method:'POST', body: JSON.stringify({ email: fd.get('email') }) }); toast('If the email exists, a reset link has been sent.'); show('#view-login'); }
+      catch(err){ toast(err.error||'Request failed','err'); }
+    });
+    $('#btn-forgot-back').onclick = (e)=>{ e.preventDefault(); show('#view-login'); };
+
     // Reset
     document.getElementById('resetForm').addEventListener('submit', async (e)=>{
       e.preventDefault(); const fd=new FormData(e.target);
-      try{ await api('/api/reset', { method:'POST', body: JSON.stringify({ code: fd.get('code'), newPassword: fd.get('password') }) }); toast('Password updated. Sign in.'); show('#view-login'); }
+      try{ await api('/api/reset', { method:'POST', body: JSON.stringify({ token: S.resetToken, newPassword: fd.get('password') }) }); toast('Password updated. Sign in.'); clearUrlParams(); show('#view-login'); }
       catch(err){ toast(err.error||'Reset failed','err'); }
     });
-    $('#btn-reset-back').onclick = (e)=>{ e.preventDefault(); show('#view-login'); };
+    $('#btn-reset-back').onclick = (e)=>{ e.preventDefault(); clearUrlParams(); show('#view-login'); };
 
     function initialsFor(u){ const fn=(u.firstName||'').trim(); const ln=(u.lastName||'').trim(); const un=(u.username||'').trim(); if(fn||ln){ return ((fn[0]||'')+(ln[0]||'')).toUpperCase() || (un[0]||'?').toUpperCase(); } return (un[0]||'?').toUpperCase(); }
 
@@ -748,6 +787,23 @@
           }
         }catch{}
 
+        // SMTP settings
+        try{
+          const smtpCfg = await api('/api/smtp');
+          $('#smtpHost').value = smtpCfg.smtp.host || '';
+          $('#smtpPort').value = smtpCfg.smtp.port || '';
+          $('#smtpUser').value = smtpCfg.smtp.user || '';
+          $('#smtpFrom').value = smtpCfg.smtp.from || '';
+          $('#smtpSecure').checked = smtpCfg.smtp.secure || false;
+          const saveBtn = $('#saveSmtp');
+          if(saveBtn){ saveBtn.onclick = async ()=>{
+            await api('/api/smtp',{ method:'PUT', body: JSON.stringify({ host: $('#smtpHost').value.trim(), port: Number($('#smtpPort').value.trim()||'587'), user: $('#smtpUser').value.trim(), pass: $('#smtpPass').value, from: $('#smtpFrom').value.trim(), secure: $('#smtpSecure').checked }) });
+            toast('SMTP settings saved');
+          }; }
+          const testBtn = $('#testSmtp');
+          if(testBtn){ testBtn.onclick = async ()=>{ try{ const r=await api('/api/smtp/test'); if(r.ok) toast('Test email sent'); else toast('SMTP test failed','err'); }catch(e){ toast(e.error||'SMTP test failed','err'); } }; }
+        }catch{}
+
         await renderUsers();
         await renderInvites();
       }
@@ -755,18 +811,14 @@
 
     function randKey(){ return Math.random().toString(16).slice(2,10); }
 
-    function groupResetCodesByUser(resetCodes){ const m=new Map(); for(const c of resetCodes){ if(!m.has(c.username)) m.set(c.username, []); m.get(c.username).push(c); } for(const [k,arr] of m){ arr.sort((a,b)=> (b.createdAt||'').localeCompare(a.createdAt||'')); } return m; }
-
     async function renderUsers(){
       const ul = $('#usersList'); if (!ul) return;
-      const [usersRes, rcRes] = await Promise.all([ api('/api/users'), api('/api/reset-codes') ]);
-      const rcByUser = groupResetCodesByUser(rcRes.resetCodes);
+      const usersRes = await api('/api/users');
       const adminCount = usersRes.users.filter(u=>u.role==='admin').length;
 
       ul.innerHTML='';
       for(const u of usersRes.users){
         const row=document.createElement('div'); row.className='bg-white/5 border border-white/10 rounded p-3';
-        const codes = rcByUser.get(u.username)||[];
         const initials = ((u.firstName||'')[0]||'') + ((u.lastName||'')[0]||'');
         const avatarHTML = u.profileImage
           ? `<img src="${u.profileImage}" class="h-8 w-8 rounded-full object-cover mr-2" alt="avatar" />`
@@ -782,32 +834,7 @@
             </div>
             <div class="flex gap-2">
               <button type="button" data-act="promote" class="px-2 py-1 bg-white/10 rounded">Toggle Admin</button>
-              <button type="button" data-act="genreset" class="px-2 py-1 bg-white/10 rounded">Generate Reset Code</button>
               <button type="button" data-act="delete" class="px-2 py-1 bg-red-700/80 rounded">Delete</button>
-            </div>
-          </div>
-
-          <div class="mt-3">
-            <div class="text-xs text-neutral-300 mb-1">Reset Codes</div>
-            <div class="overflow-x-auto">
-              <table class="w-full text-sm">
-                <thead class="text-neutral-300">
-                  <tr>
-                    <th class="text-left py-1">Code</th>
-                    <th class="text-left">Expires</th>
-                    <th class="text-left">Status</th>
-                    <th class="text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>${(codes.map(c=>`
-                  <tr class="border-t border-white/10">
-                    <td class="py-1 mono pr-2">${c.code}</td>
-                    <td class="text-xs">${c.expiresAt||'never'}</td>
-                    <td class="text-xs">${c.usedAt?('used '+c.usedAt):'<span class="text-emerald-300">active</span>'}</td>
-                    <td class="text-right"><button data-code="${c.code}" class="px-2 py-1 bg-white/10 rounded del-code">Delete</button></td>
-                  </tr>`).join('')) || `<tr><td class="py-2 text-neutral-300" colspan="4">None</td></tr>`}
-                </tbody>
-              </table>
             </div>
           </div>`;
 
@@ -815,33 +842,10 @@
         promoteBtn.disabled = adminCount <= 1 && u.role === 'admin';
         promoteBtn.classList.toggle('opacity-50', promoteBtn.disabled);
         promoteBtn.onclick = async ()=>{ const newRole = u.role==='admin'?'user':'admin'; try{ await api(`/api/users/${u.username}`, { method:'PATCH', body: JSON.stringify({ role:newRole })}); toast('Role updated'); await renderUsers(); }catch(e){ toast(e.error||'Update failed','err'); } };
-        row.querySelector('[data-act="genreset"]').onclick = ()=> openResetModal(u.username);
         row.querySelector('[data-act="delete"]').onclick = async ()=>{ if(!confirm(`Delete user ${u.username}? This cannot be undone.`)) return; try{ await api(`/api/users/${encodeURIComponent(u.username)}`, { method:'DELETE' }); toast('User deleted'); await renderUsers(); }catch(e){ toast(e.error||'Delete failed','err'); } };
-        row.querySelectorAll('.del-code').forEach(b=> b.onclick = async ()=>{ if(!confirm('Delete this reset code?')) return; await api(`/api/reset-codes/${b.dataset.code}`, { method:'DELETE' }); toast('Reset code deleted'); await renderUsers(); });
 
         ul.appendChild(row);
       }
-    }
-
-    function openResetModal(username){
-      const body = `
-        <div class="text-sm">Generate a reset code for <span class="font-semibold">${username}</span></div>
-        <div>
-          <label class="block text-xs mb-1">Expires</label>
-          <select id="preset" class="px-3 py-2 rounded bg-white/5 border w-full">
-            <option value="1d">1 day</option>
-            <option value="7d">7 days</option>
-            <option value="1m">1 month</option>
-            <option value="6m">6 months</option>
-            <option value="never">Never</option>
-          </select>
-        </div>
-        <div id="result" class="hidden mt-2 text-sm">
-          <div class="text-neutral-300">Code</div>
-          <div id="resultCode" class="mono bg-white/5 border border-white/10 rounded p-2"></div>
-          <button id="copyRC" class="mt-2 px-3 py-1.5 rounded bg-white/10 hover:bg-white/20 text-xs">Copy</button>
-        </div>`;
-      Modal.open({ title:'Generate Reset Code', bodyHTML: body, confirmText:'Create', onConfirm: async ()=>{ const preset=$('#preset').value; const expiresAt=preset==='never'?null:(()=>{ const d=new Date(); if(preset==='1d') d.setDate(d.getDate()+1); if(preset==='7d') d.setDate(d.getDate()+7); if(preset==='1m') d.setMonth(d.getMonth()+1); if(preset==='6m') d.setMonth(d.getMonth()+6); return d.toISOString(); })(); const r=await api('/api/reset-codes',{ method:'POST', body: JSON.stringify({ username, expiresAt })}); const rcBox=$('#result'); const rc=$('#resultCode'); const copy=$('#copyRC'); if(rcBox&&rc&&copy){ rcBox.classList.remove('hidden'); rc.textContent=r.code; copy.onclick=()=>copyToClipboard(r.code); } toast(`Reset code created for ${username}`); await renderUsers(); } });
     }
 
     async function renderInvites(){
