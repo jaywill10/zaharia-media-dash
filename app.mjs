@@ -19,11 +19,11 @@ import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import nodemailer from 'nodemailer';
 import { fileURLToPath } from 'url';
+import { init as initDb, load, save } from './db.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const DATA_PATH = process.env.DATA_PATH || '/data/data.json';
 const PORT = process.env.PORT || 8088;
 const HOST = '0.0.0.0';
 const APP_URL = (process.env.APP_URL || `http://localhost:${PORT}`).replace(/\/$/, '');
@@ -36,6 +36,8 @@ const SMTP_ENV = {
   secure: process.env.SMTP_SECURE === 'true',
   from: process.env.SMTP_FROM || process.env.SMTP_USER || ''
 };
+
+initDb(SMTP_ENV);
 
 let mailer = null;
 function initMailer(){
@@ -68,39 +70,6 @@ async function sendEmail(to, subject, text){
   await mailer.sendMail({ from, to, subject, text });
 }
 initMailer();
-
-// ---------------- Data helpers ----------------
-function load(){
-  if (!fs.existsSync(DATA_PATH)){
-    const initial = {
-      secrets: { jwt: crypto.randomBytes(32).toString('hex') },
-      users: [ {
-        username: 'admin',
-        passwordHash: bcrypt.hashSync('admin123', 10),
-        role: 'admin',
-        email: '',
-        firstName: '',
-        lastName: '',
-        profileImage: null,
-        totpSecret: null,
-        preferences: { showNowPlaying: true, appOrder: [] },
-        createdAt: new Date().toISOString()
-      } ],
-      invites: [], // {code, role, createdAt, createdBy?, expiresAt?, usedBy?, usedAt?}
-      passwordResets: [], // {token, username, createdAt, expiresAt?, usedAt?}
-      apps: [],
-      features: { showNowPlaying: true },
-      sabnzbd: { baseUrl: '', apiKey: '' },
-      integrations: { plex: { baseUrl: '', token: '' } },
-      smtp: { host: SMTP_ENV.host, port: SMTP_ENV.port, secure: SMTP_ENV.secure, user: SMTP_ENV.user, pass: SMTP_ENV.pass, from: SMTP_ENV.from }
-    };
-    fs.mkdirSync(path.dirname(DATA_PATH), { recursive: true });
-    fs.writeFileSync(DATA_PATH, JSON.stringify(initial, null, 2));
-    return initial;
-  }
-  return JSON.parse(fs.readFileSync(DATA_PATH, 'utf8'));
-}
-function save(j){ fs.writeFileSync(DATA_PATH, JSON.stringify(j, null, 2)); }
 
 // ---------------- Server bootstrap ----------------
 const app = express();
