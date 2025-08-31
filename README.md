@@ -6,14 +6,15 @@ This repo contains the Dockerization files for your Unraid dashboard.
 ```
 zaharia-media-home/
 ├─ data/                # persists runtime data (mounted as volume)
-├─ public/              # static assets (put your index.html here)
+├─ frontend/            # front-end source (Vite)
+├─ public/              # static assets (built)
 ├─ app.mjs              # Node backend (Express)
 ├─ package.json         # (provided in this bundle)
 ├─ Dockerfile           # (provided in this bundle)
 └─ docker-compose.yml   # (provided in this bundle)
 ```
 
-> Place your existing `app.mjs` and everything under `public/` (including your `index.html`) next to these files.
+> Place your existing `app.mjs` and front-end source under `frontend/`. Run `npm run build` to emit static files into `public/`.
 
 ## How to run (Unraid host or any Docker host)
 ```bash
