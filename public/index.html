@@ -899,11 +899,11 @@
           if(r.otpauth){
             const sec = r.secret || (()=>{ try{ const u=new URL(r.otpauth); return new URLSearchParams(u.search).get('secret')||''; }catch{} return ''; })();
             $('#mfaSetup').classList.remove('hidden');
-            renderQRTo('#mfaQr', r.otpauth);
-            $('#mfaOtpauth').textContent=r.otpauth;
-            $('#mfaSecret').textContent=sec;
-            $('#mfaCopyLink').onclick=()=>copyToClipboard(r.otpauth);
-            $('#mfaCopySecret').onclick=()=>copyToClipboard(sec);
+            $('#mfaOtpauth').textContent = r.otpauth;
+            $('#mfaSecret').textContent = sec;
+            $('#mfaCopyLink').onclick = ()=>copyToClipboard(r.otpauth);
+            $('#mfaCopySecret').onclick = ()=>copyToClipboard(sec);
+            try{ renderQRTo('#mfaQr', r.otpauth); }catch(err){ console.error(err); }
             S.me = r.user || S.me;
           }
         }catch(e){ toast(e.error||'Failed to start setup','err'); }
