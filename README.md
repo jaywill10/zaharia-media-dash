@@ -27,6 +27,18 @@ docker compose up -d
 ## Environment variables
 If your app needs secrets (e.g., PLEX token, SAB API key), add them under `environment:` in `docker-compose.yml` or use a `.env` file and reference with `${VAR}`.
 
+### SMTP (optional)
+To enable email delivery for invites and password resets, set:
+
+```
+SMTP_HOST=smtp.example.com
+SMTP_PORT=587
+SMTP_USER=username
+SMTP_PASS=password
+SMTP_FROM=dashboard@example.com
+APP_URL=http://192.168.1.182:8088
+```
+
 ## GitHub setup
 1. Create a new GitHub repo (private or public).
 2. Commit these files plus your `app.mjs`, `public/` contents, and optional `data/` (usually excluded).

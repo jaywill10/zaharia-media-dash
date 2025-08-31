@@ -17,6 +17,7 @@ import path from 'path';
 import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import nodemailer from 'nodemailer';
 import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -25,6 +26,28 @@ const __dirname = path.dirname(__filename);
 const DATA_PATH = process.env.DATA_PATH || '/data/data.json';
 const PORT = process.env.PORT || 8088;
 const HOST = '0.0.0.0';
+const APP_URL = (process.env.APP_URL || `http://localhost:${PORT}`).replace(/\/$/, '');
+
+const SMTP_HOST = process.env.SMTP_HOST || '';
+const SMTP_PORT = parseInt(process.env.SMTP_PORT || '587', 10);
+const SMTP_USER = process.env.SMTP_USER || '';
+const SMTP_PASS = process.env.SMTP_PASS || '';
+const SMTP_SECURE = process.env.SMTP_SECURE === 'true';
+const SMTP_FROM = process.env.SMTP_FROM || SMTP_USER || '';
+
+let mailer = null;
+if (SMTP_HOST){
+  mailer = nodemailer.createTransport({
+    host: SMTP_HOST,
+    port: SMTP_PORT,
+    secure: SMTP_SECURE,
+    auth: SMTP_USER ? { user: SMTP_USER, pass: SMTP_PASS } : undefined
+  });
+}
+async function sendEmail(to, subject, text){
+  if (!mailer) throw new Error('SMTP not configured');
+  await mailer.sendMail({ from: SMTP_FROM || undefined, to, subject, text });
+}
 
 // ---------------- Data helpers ----------------
 function load(){
@@ -175,12 +198,22 @@ app.delete('/api/users/:username', authMiddleware, adminOnly, (req,res)=>{
 
 // ---------------- Invites (admin) ----------------
 app.get('/api/invites', authMiddleware, adminOnly, (req,res)=>{ const j=load(); res.json({ invites: j.invites||[] }); });
-app.post('/api/invites', authMiddleware, adminOnly, (req,res)=>{
-  const { role='user', expiresAt=null } = req.body||{};
+app.post('/api/invites', authMiddleware, adminOnly, async (req,res)=>{
+  const { role='user', expiresAt=null, email } = req.body||{};
   const j=load(); j.invites=j.invites||[];
   const code = crypto.randomBytes(4).toString('hex');
   j.invites.push({ code, role, createdAt: new Date().toISOString(), createdBy: req.user.username, expiresAt });
   save(j);
+  if (email){
+    const link=`${APP_URL}/register?inviteCode=${code}`;
+    try{
+      await sendEmail(email,'Zaharia Media invite',`Use this link: ${link}`);
+      return res.json({ code, emailSent:true });
+    }catch(e){
+      console.error('Invite email failed', e);
+      return res.status(500).json({ error:'Failed to send email', code });
+    }
+  }
   res.json({ code });
 });
 app.delete('/api/invites/:code', authMiddleware, adminOnly, (req,res)=>{ const j=load(); j.invites=(j.invites||[]).filter(x=>x.code!==req.params.code); save(j); res.json({ ok:true }); });
@@ -193,13 +226,23 @@ app.post('/api/invites/erase-history', authMiddleware, adminOnly, (req,res)=>{
 
 // ---------------- Reset Codes (admin) ----------------
 app.get('/api/reset-codes', authMiddleware, adminOnly, (req,res)=>{ const j=load(); res.json({ resetCodes: j.resetCodes||[] }); });
-app.post('/api/reset-codes', authMiddleware, adminOnly, (req,res)=>{
-  const { username, expiresAt=null } = req.body||{};
+app.post('/api/reset-codes', authMiddleware, adminOnly, async (req,res)=>{
+  const { username, expiresAt=null, email } = req.body||{};
   const j=load(); const u=(j.users||[]).find(x=>x.username===username); if(!u) return res.status(404).json({ error:'User not found' });
   j.resetCodes=j.resetCodes||[];
   const code = crypto.randomBytes(4).toString('hex');
   j.resetCodes.push({ code, username, createdAt:new Date().toISOString(), expiresAt });
   save(j);
+  if (email){
+    const link=`${APP_URL}/reset?code=${code}`;
+    try{
+      await sendEmail(email,'Password reset',`Use this link: ${link}\nOr code: ${code}`);
+      return res.json({ code, emailSent:true });
+    }catch(e){
+      console.error('Reset email failed', e);
+      return res.status(500).json({ error:'Failed to send email', code });
+    }
+  }
   res.json({ code });
 });
 app.delete('/api/reset-codes/:code', authMiddleware, adminOnly, (req,res)=>{ const j=load(); j.resetCodes=(j.resetCodes||[]).filter(x=>x.code!==req.params.code); save(j); res.json({ ok:true }); });
