@@ -44,8 +44,6 @@
       box-shadow: 0 6px 30px rgba(0,0,0,.35);
     }
 
-    .qr canvas { width: 240px !important; height: 240px !important; image-rendering: pixelated; }
-    .qr-box { display: flex; gap: 16px; align-items: flex-start; }
     .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; word-break: break-all; }
     .tab{ border-bottom: 2px solid transparent; padding: .5rem .75rem; border-radius: .5rem .5rem 0 0; cursor:pointer }
     .tab.active{ border-color: rgba(255,255,255,.12); background: rgba(255,255,255,.05); }
@@ -63,6 +61,9 @@
     .toast { padding: .6rem .8rem; border-radius: .75rem; font-size: .9rem; }
     .toast-ok { background: rgba(34,197,94,.16); color: #bbf7d0; border: 1px solid rgba(34,197,94,.3); }
     .toast-err { background: rgba(239,68,68,.16); color: #fecaca; border: 1px solid rgba(239,68,68,.3); }
+
+    .qr-box{ display:flex; gap:16px; align-items:flex-start; }
+    .qr canvas{ width:240px !important; height:240px !important; image-rendering:pixelated; }
 
     .bar{ width: 100%; border-radius: 9999px; background: rgba(255,255,255,.08); overflow: hidden; position: relative; }
     .bar > span{ display:block; height:100%; background-image: linear-gradient(90deg, var(--brand1), var(--brand2), var(--brand3)); }
@@ -427,7 +428,6 @@
 
   <!-- QR lib -->
   <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
-
   <script>
     const S = { token: null, me: null, sabPage: 1, sabPages: 1, sabTimer: null, npTimer: null, apps: [] };
     const $ = sel => document.querySelector(sel);
@@ -515,23 +515,6 @@
     document.getElementById('registerForm').addEventListener('submit', async (e)=>{
       e.preventDefault(); const fd=new FormData(e.target); const body={ inviteCode:fd.get('inviteCode'), username:fd.get('username'), password:fd.get('password'), enableTotp:!!fd.get('enableTotp') };
       try{
-        const { otpauth } = await api('/api/register', { method:'POST', body: JSON.stringify(body) });
-        if(otpauth){
-          $('#registerMfa').classList.remove('hidden');
-          renderQRTo('#qr', otpauth);
-          $('#otpauth').textContent=otpauth;
-          try{
-            const u=new URL(otpauth);
-            $('#otpsecret').textContent=new URLSearchParams(u.search).get('secret')||'';
-          }catch{}
-          $('#copyOtpauth').onclick=()=>copyToClipboard(otpauth);
-          $('#copySecret').onclick=()=>{
-            try{
-              const u=new URL(otpauth);
-              copyToClipboard(new URLSearchParams(u.search).get('secret')||'');
-            }catch{}
-          };
-          toast('Account created! Scan the code with your authenticator then sign in.');
         } else {
           toast('Account created! You can now sign in.');
           show('#view-login');
@@ -866,9 +849,45 @@
     function startNowPlayingPolling(){ clearInterval(S.npTimer); if(!shouldShowNowPlaying()){ $('#nowPlayingWrap').classList.add('hidden'); return; } fetchNowPlaying(); S.npTimer=setInterval(fetchNowPlaying, 5000); }
 
     function hasMfaEnabled(){ return !!(S.me && S.me.totpSecret); }
-    async function setupMfaUI(){ const box=$('#mfaBox'); if(!box) return; const enabled=hasMfaEnabled(); $('#mfaStatus').textContent = enabled ? 'Enabled' : 'Disabled'; $('#mfaStart').classList.toggle('hidden', enabled); $('#mfaDisable').classList.toggle('hidden', !enabled); $('#mfaSetup').classList.add('hidden'); $('#mfaStart').onclick = async ()=>{ try{ const r=await api('/api/me',{ method:'PUT', body: JSON.stringify({ mfaAction:'start' }) }); if(r.otpauth){ $('#mfaSetup').classList.remove('hidden'); $('#mfaOtpauth').textContent=r.otpauth; try{ const u=new URL(r.otpauth); $('#mfaSecret').textContent=new URLSearchParams(u.search).get('secret')||''; }catch{} renderQRTo('#mfaQr', r.otpauth); $('#mfaCopyLink').onclick=()=>copyToClipboard(r.otpauth); $('#mfaCopySecret').onclick=()=>{ try{ const u=new URL(r.otpauth); copyToClipboard(new URLSearchParams(u.search).get('secret')||''); }catch{} }; } }catch(e){ toast(e.error||'Failed to start setup','err'); } };
-      $('#mfaDisable').onclick = async ()=>{ if(!confirm('Disable authenticator app for this account?')) return; try{ const r=await api('/api/me',{ method:'PUT', body: JSON.stringify({ mfaAction:'disable' }) }); S.me=r.user; toast('MFA disabled'); setupMfaUI(); }catch(e){ toast(e.error||'Failed to disable','err'); } };
-      $('#mfaVerify').onclick = async ()=>{ const code=$('#mfaCode').value.trim(); if(!/^[0-9]{6}$/.test(code)){ toast('Enter the 6‑digit code from your app','err'); return; } try{ const r=await api('/api/me',{ method:'PUT', body: JSON.stringify({ mfaAction:'verify', code }) }); S.me=r.user; toast('MFA enabled and saved'); setupMfaUI(); }catch(e){ toast(e.error||'Verification failed','err'); } };
+    async function setupMfaUI(){
+      const box=$('#mfaBox'); if(!box) return;
+      const enabled=hasMfaEnabled();
+      $('#mfaStatus').textContent = enabled ? 'Enabled' : 'Disabled';
+      $('#mfaStart').classList.toggle('hidden', enabled);
+      $('#mfaDisable').classList.toggle('hidden', !enabled);
+      $('#mfaSetup').classList.add('hidden');
+      $('#mfaStart').onclick = async ()=>{
+        try{
+          const r=await api('/api/me',{ method:'PUT', body: JSON.stringify({ mfaAction:'start' }) });
+          if(r.otpauth){
+            const sec = r.secret || (()=>{ try{ const u=new URL(r.otpauth); return new URLSearchParams(u.search).get('secret')||''; }catch{} return ''; })();
+            $('#mfaSetup').classList.remove('hidden');
+            renderQRTo('#mfaQr', r.otpauth);
+            $('#mfaOtpauth').textContent=r.otpauth;
+            $('#mfaSecret').textContent=sec;
+            $('#mfaCopyLink').onclick=()=>copyToClipboard(r.otpauth);
+            $('#mfaCopySecret').onclick=()=>copyToClipboard(sec);
+          }
+        }catch(e){ toast(e.error||'Failed to start setup','err'); }
+      };
+      $('#mfaDisable').onclick = async ()=>{
+        if(!confirm('Disable authenticator app for this account?')) return;
+        try{
+          const r=await api('/api/me',{ method:'PUT', body: JSON.stringify({ mfaAction:'disable' }) });
+          S.me=r.user; toast('MFA disabled'); setupMfaUI();
+        }catch(e){ toast(e.error||'Failed to disable','err'); }
+      };
+      $('#mfaVerify').onclick = async ()=>{
+        const code=$('#mfaCode').value.trim();
+        if(!/^[0-9]{6}$/.test(code)){
+          toast('Enter the 6‑digit code from your app','err');
+          return;
+        }
+        try{
+          const r=await api('/api/me',{ method:'PUT', body: JSON.stringify({ mfaAction:'verify', code }) });
+          S.me=r.user; toast('MFA enabled and saved'); setupMfaUI();
+        }catch(e){ toast(e.error||'Verification failed','err'); }
+      };
     }
 
     // Settings (profile + picture + prefs)
