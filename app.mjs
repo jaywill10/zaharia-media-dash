@@ -116,9 +116,13 @@ app.post('/api/register', async (req,res)=>{
   j.users.push(nu);
   inv.usedAt = new Date().toISOString(); inv.usedBy = username;
   let otpauth = null, secret = null;
-  if (enableTotp){ secret = randomBase32(20); nu.totpSecret = secret; otpauth = makeOtpAuthURL(`${nu.username}@ZahariaMedia`, 'ZahariaMedia', secret); }
+  if (enableTotp){
+    secret = randomBase32(20);
+    nu.totpSecret = secret;
+    otpauth = makeOtpAuthURL(`${nu.username}@ZahariaMedia`, 'ZahariaMedia', secret);
+  }
   save(j);
-  res.json({ ok:true, otpauth, secret });
+  return res.json({ ok:true, otpauth, secret });
 });
 
 // Password reset via admin-generated reset code
