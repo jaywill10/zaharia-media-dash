@@ -515,16 +515,6 @@
     document.getElementById('registerForm').addEventListener('submit', async (e)=>{
       e.preventDefault(); const fd=new FormData(e.target); const body={ inviteCode:fd.get('inviteCode'), username:fd.get('username'), password:fd.get('password'), enableTotp:!!fd.get('enableTotp') };
       try{
-        const { otpauth, secret } = await api('/api/register', { method:'POST', body: JSON.stringify(body) });
-        if(otpauth){
-          const sec = secret || (()=>{ try{ const u=new URL(otpauth); return new URLSearchParams(u.search).get('secret')||''; }catch{} return ''; })();
-          $('#registerMfa').classList.remove('hidden');
-          renderQRTo('#qr', otpauth);
-          $('#otpauth').textContent=otpauth;
-          $('#otpsecret').textContent=sec;
-          $('#copyOtpauth').onclick=()=>copyToClipboard(otpauth);
-          $('#copySecret').onclick=()=>copyToClipboard(sec);
-          toast('Account created! Scan the code or copy the setup details, then sign in.');
         } else {
           toast('Account created! You can now sign in.');
           show('#view-login');
