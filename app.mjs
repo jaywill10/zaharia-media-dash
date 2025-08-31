@@ -42,10 +42,19 @@ function initMailer(){
   const j = load();
   const cfg = j.smtp || SMTP_ENV;
   if (cfg.host){
+    let host = String(cfg.host).trim();
+    host = host.replace(/^https?:\/\//i,'').replace(/^smtps?:\/\//i,'');
+    if(host.includes(':')){
+      const [h,p] = host.split(':');
+      host = h;
+      if(!cfg.port) cfg.port = Number(p);
+    }
+    const port = Number(cfg.port) || 587;
+    const secure = cfg.secure !== undefined ? !!cfg.secure : (port === 465);
     mailer = nodemailer.createTransport({
-      host: cfg.host,
-      port: Number(cfg.port) || 587,
-      secure: !!cfg.secure,
+      host,
+      port,
+      secure,
       auth: cfg.user ? { user: cfg.user, pass: cfg.pass } : undefined
     });
   } else {
