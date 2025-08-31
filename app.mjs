@@ -42,10 +42,21 @@ function initMailer(){
   const j = load();
   const cfg = j.smtp || SMTP_ENV;
   if (cfg.host){
+    let host = String(cfg.host).trim();
+    host = host.replace(/^(?:https?|smtps?):\/\//i, '').split(/[/?#]/)[0];
+    if(host.includes(':')){
+      const [h,p] = host.split(':');
+      host = h;
+      if(!cfg.port) cfg.port = Number(p);
+    }
+    const port = Number(cfg.port) || 587;
+    const secure = cfg.secure !== undefined ? !!cfg.secure : (port === 465);
+    const requireTLS = !secure && port === 587 ? true : undefined;
     mailer = nodemailer.createTransport({
-      host: cfg.host,
-      port: Number(cfg.port) || 587,
-      secure: !!cfg.secure,
+      host,
+      port,
+      secure,
+      requireTLS,
       auth: cfg.user ? { user: cfg.user, pass: cfg.pass } : undefined
     });
   } else {

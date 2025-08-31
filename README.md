@@ -39,6 +39,19 @@ SMTP_FROM=dashboard@example.com
 APP_URL=http://192.168.1.182:8088
 ```
 
+For Gmail, use your app-specific password and set:
+
+```
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=465
+SMTP_SECURE=true
+SMTP_USER=you@gmail.com
+SMTP_PASS=your-app-password
+SMTP_FROM=you@gmail.com
+```
+
+The app will automatically strip any protocol (`smtp://`, `http://`), embedded port, or path from `SMTP_HOST`, default to TLS when using port 465, and enforce STARTTLS on port 587.
+
 Every user must register with a unique email address. Password recovery links are sent to that email, so configure SMTP before inviting users.
 
 ## GitHub setup
