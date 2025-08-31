@@ -79,15 +79,32 @@ import QRCode from 'qrcode';
     async function copyToClipboard(t){ try{ await navigator.clipboard.writeText(t); }catch{ const ta=document.createElement("textarea"); ta.value=t; document.body.appendChild(ta); ta.select(); document.execCommand("copy"); ta.remove(); } toast('Copied to clipboard'); }
 
     // Bootstrap token
-    (function(){ const saved=localStorage.getItem('zm_token'); if(saved){ S.token=saved; api('/api/me').then(me=>{ S.me=me.user; clearUrlParams(); afterLogin(false); }).catch(()=>{ localStorage.removeItem('zm_token'); S.token=null; }); } })();
+    (function(){
+      const saved=localStorage.getItem('zm_token');
+      if(saved){
+        S.token=saved;
+        api('/api/me')
+          .then(me=>{ S.me=me.user; clearUrlParams(); return afterLogin(false); })
+          .catch(()=>{ localStorage.removeItem('zm_token'); S.token=null; });
+      }
+    })();
 
     // Login
     document.getElementById('loginForm').addEventListener('submit', async (e)=>{
       e.preventDefault(); const errBox=$('#loginError'); if(errBox) errBox.textContent='';
       const fd=new FormData(e.target); const remember=!!fd.get('remember'); const body={ username:fd.get('username'), password:fd.get('password'), remember };
       const otp=fd.get('otp'); if(otp) body.otp=otp;
-      try{ const { token, user } = await api('/api/login',{ method:'POST', body: JSON.stringify(body) }); S.token=token; S.me=user; if(remember) localStorage.setItem('zm_token', token); else localStorage.removeItem('zm_token'); clearUrlParams(); afterLogin(); }
-      catch(err){ if(err && err.error==='MFA code required'){ const w=$('#otpWrap'); if(w){ w.classList.remove('hidden'); w.querySelector('input[name="otp"]').focus(); } return; } (errBox||{}).textContent = (err && (err.error||err.message)) ? (err.error||err.message) : 'Login failed'; }
+      try{
+        const { token, user } = await api('/api/login',{ method:'POST', body: JSON.stringify(body) });
+        S.token=token; S.me=user;
+        if(remember) localStorage.setItem('zm_token', token); else localStorage.removeItem('zm_token');
+        clearUrlParams();
+        await afterLogin();
+      }
+      catch(err){
+        if(err && err.error==='MFA code required'){ const w=$('#otpWrap'); if(w){ w.classList.remove('hidden'); w.querySelector('input[name="otp"]').focus(); } return; }
+        (errBox||{}).textContent = (err && (err.error||err.message)) ? (err.error||err.message) : 'Login failed';
+      }
     });
     $('#btn-register').onclick = (e)=>{ e.preventDefault(); show('#view-register'); };
     $('#btn-forgot').onclick   = (e)=>{ e.preventDefault(); show('#view-forgot'); };
