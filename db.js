@@ -41,7 +41,10 @@ function init(smtpEnv){
         lastName: '',
         profileImage: null,
         totpSecret: null,
-        preferences: { showNowPlaying: true, appOrder: [] },
+        failedLogins: 0,
+        lockedUntil: null,
+        lastLoginAt: null,
+        preferences: { showNowPlaying: true, appOrder: [], theme: 'dark' },
         createdAt: new Date().toISOString()
       } ],
       invites: [],
@@ -57,7 +60,8 @@ function init(smtpEnv){
         user: smtpEnv.user,
         pass: smtpEnv.pass,
         from: smtpEnv.from
-      }
+      },
+      audit: []
     };
     save(initial);
   }

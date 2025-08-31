@@ -103,10 +103,22 @@ app.post('/api/login', async (req,res)=>{
   const { username, password, otp, remember } = req.body||{};
   const j = load();
   const u = (j.users||[]).find(x => x.username === String(username||'').trim());
-  if (!u) return res.status(401).json({ error:'Invalid credentials' });
+  const now = new Date();
+  const audit = (success, reason)=>{ j.audit = j.audit||[]; j.audit.push({ type:'login', username:String(username||'').trim(), success, reason, ip:req.ip, at: now.toISOString() }); if(j.audit.length>1000) j.audit.splice(0, j.audit.length-1000); };
+  if (!u){ audit(false,'no-user'); save(j); return res.status(401).json({ error:'Invalid credentials' }); }
+  if (u.lockedUntil && new Date(u.lockedUntil) > now){ audit(false,'locked'); save(j); return res.status(403).json({ error:'Account locked. Try later.' }); }
   const ok = await bcrypt.compare(String(password||''), u.passwordHash||'');
-  if (!ok) return res.status(401).json({ error:'Invalid credentials' });
-  if (u.totpSecret){ if (!otp) return res.status(401).json({ error:'MFA code required' }); if (!totpVerify(u.totpSecret, otp)) return res.status(401).json({ error:'Invalid MFA code' }); }
+  if (!ok){
+    u.failedLogins = (u.failedLogins||0) + 1;
+    if (u.failedLogins >= 5){ u.lockedUntil = new Date(Date.now()+15*60*1000).toISOString(); u.failedLogins = 0; audit(false,'locked'); }
+    else { audit(false,'bad-password'); }
+    save(j);
+    return res.status(401).json({ error:'Invalid credentials' });
+  }
+  if (u.totpSecret){ if (!otp){ audit(false,'mfa-required'); save(j); return res.status(401).json({ error:'MFA code required' }); } if (!totpVerify(u.totpSecret, otp)){ audit(false,'bad-mfa'); save(j); return res.status(401).json({ error:'Invalid MFA code' }); } }
+  u.failedLogins = 0; u.lockedUntil = null; u.lastLoginAt = now.toISOString();
+  audit(true,'ok');
+  save(j);
   const token = signToken(u, !!remember);
   const { passwordHash, ...userSafe } = u;
   res.json({ token, user: userSafe });
@@ -125,7 +137,7 @@ app.post('/api/register', async (req,res)=>{
   if (inv.expiresAt && new Date(inv.expiresAt) < new Date()) return res.status(400).json({ error:'Invite expired' });
   if (j.users.some(u=>u.username===username)) return res.status(400).json({ error:'Username already taken' });
   if (j.users.some(u=> (u.email||'').toLowerCase()===emailStr)) return res.status(400).json({ error:'Email already used' });
-  const nu = { username, email: emailStr, passwordHash: await bcrypt.hash(String(password),10), role: inv.role||'user', firstName:'', lastName:'', profileImage:null, totpSecret: null, preferences:{ showNowPlaying:true, appOrder:[] }, createdAt: new Date().toISOString() };
+  const nu = { username, email: emailStr, passwordHash: await bcrypt.hash(String(password),10), role: inv.role||'user', firstName:'', lastName:'', profileImage:null, totpSecret: null, failedLogins:0, lockedUntil:null, lastLoginAt:null, preferences:{ showNowPlaying:true, appOrder:[], theme:'dark' }, createdAt: new Date().toISOString() };
   j.users.push(nu);
   inv.usedAt = new Date().toISOString(); inv.usedBy = username;
   let otpauth = null, secret = null;
@@ -360,7 +372,12 @@ app.put('/api/me', authMiddleware, async (req,res)=>{
 
   // Preferences
   u.preferences = u.preferences || {};
-  if (preferences && typeof preferences === 'object') u.preferences = Object.assign({}, u.preferences, preferences);
+  if (preferences && typeof preferences === 'object'){
+    u.preferences = Object.assign({}, u.preferences, preferences);
+    if ('theme' in preferences){
+      u.preferences.theme = (preferences.theme === 'light') ? 'light' : 'dark';
+    }
+  }
   if (Array.isArray(appOrder)) u.preferences.appOrder = appOrder.slice();
 
   // MFA flow
@@ -384,6 +401,12 @@ app.put('/api/me', authMiddleware, async (req,res)=>{
   save(j);
   const { passwordHash, ...userSafe } = u;
   res.json({ user: userSafe });
+});
+
+// ---------------- Audit logs ----------------
+app.get('/api/audit', authMiddleware, adminOnly, (req,res)=>{
+  const j=load();
+  res.json({ audit: j.audit||[] });
 });
 
 // ---------------- Health ----------------

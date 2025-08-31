@@ -13,6 +13,12 @@
       background-attachment: fixed;
       overflow-y: overlay;
     }
+    body[data-theme="light"]{
+      background: #f3f4f6;
+      color: #111827;
+    }
+    body[data-theme="light"] .glass{ background: rgba(255,255,255,.8); border:1px solid rgba(0,0,0,.1); }
+    body[data-theme="light"] .tile:hover{ box-shadow: 0 24px 70px rgba(0,0,0,.15); }
     @keyframes floaty { 0%{transform:translateY(0)} 50%{transform:translateY(-8px)} 100%{transform:translateY(0)} }
     .glass{ backdrop-filter: blur(16px); background: rgba(18,18,24,.55); border: 1px solid rgba(255,255,255,.10); }
     .tile{ transition: transform .18s ease, box-shadow .18s ease; }
