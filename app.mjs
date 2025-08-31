@@ -75,7 +75,13 @@ function authMiddleware(req,res,next){ const j=load(); const h=req.headers.autho
 function adminOnly(req,res,next){ if(req.user?.role!=='admin') return res.status(403).json({ error:'Admin only' }); next(); }
 
 // ---------------- Utilities ----------------
-function randomBase32(len=20){ return crypto.randomBytes(len).toString('base64').replace(/[^A-Z2-7]/gi,'').slice(0,len); }
+function randomBase32(len = 20){
+  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+  const bytes = crypto.randomBytes(len);
+  let out = '';
+  for (let i = 0; i < len; i++) out += alphabet[bytes[i] % alphabet.length];
+  return out;
+}
 function makeOtpAuthURL(label, issuer, secret){ const p=new URLSearchParams({ secret, issuer }); return `otpauth://totp/${encodeURIComponent(label)}?${p.toString()}`; }
 // Lightweight TOTP check (accept any 6 digits to avoid blocking real flow; swap with real TOTP if desired)
 function totpVerify(secret, code){ return /^[0-9]{6}$/.test(String(code||'')); }
