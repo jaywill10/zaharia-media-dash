@@ -195,6 +195,11 @@
               </div>
             </div>
           </div>
+          <div class="mt-4">
+            <label class="block text-xs mb-1">Enter 6-digit code from your app</label>
+            <input id="registerOtp" class="w-48 px-2 py-2 rounded bg-white/5 border" placeholder="123456" inputmode="numeric" maxlength="6" />
+          </div>
+          <button type="button" id="registerVerify" class="mt-3 px-4 py-2 btn-brand text-white rounded">Save & Register</button>
         </div>
 
         <div class="mt-4"><button type="button" id="btn-register-back" class="underline">Back to sign in</button></div>
@@ -513,14 +518,42 @@
 
     // Register
     document.getElementById('registerForm').addEventListener('submit', async (e)=>{
-      e.preventDefault(); const fd=new FormData(e.target); const body={ inviteCode:fd.get('inviteCode'), username:fd.get('username'), password:fd.get('password'), enableTotp:!!fd.get('enableTotp') };
+      e.preventDefault();
+      const fd=new FormData(e.target);
+      const username=fd.get('username');
+      const password=fd.get('password');
+      const body={ inviteCode:fd.get('inviteCode'), username, password, enableTotp:!!fd.get('enableTotp') };
       try{
+        const { otpauth, secret } = await api('/api/register', { method:'POST', body: JSON.stringify(body) });
+        if(otpauth){
+          const sec = secret || (()=>{ try{ const u=new URL(otpauth); return new URLSearchParams(u.search).get('secret')||''; }catch{} return ''; })();
+          e.target.classList.add('hidden');
+          const wrap=$('#registerMfa');
+          wrap.classList.remove('hidden');
+          renderQRTo('#qr', otpauth);
+          $('#otpauth').textContent=otpauth;
+          $('#otpsecret').textContent=sec;
+          $('#copyOtpauth').onclick=()=>copyToClipboard(otpauth);
+          $('#copySecret').onclick=()=>copyToClipboard(sec);
+          const otpInput=$('#registerOtp');
+          $('#registerVerify').onclick=async ()=>{
+            const code=(otpInput.value||'').trim();
+            if(!/^[0-9]{6}$/.test(code)) return toast('Enter a valid 6-digit code','err');
+            try{
+              const { token, user } = await api('/api/login',{ method:'POST', body: JSON.stringify({ username, password, otp: code }) });
+              S.token=token; S.me=user; localStorage.setItem('zm_token', token);
+              clearUrlParams();
+              toast('Account created!');
+              afterLogin();
+            }catch(err){ toast(err.error||'Verification failed','err'); }
+          };
         } else {
           toast('Account created! You can now sign in.');
           show('#view-login');
         }
+      } catch(err){
+        toast(err.error||'Registration failed','err');
       }
-      catch(err){ toast(err.error||'Registration failed','err'); }
     });
     $('#btn-register-back').onclick = (e)=>{ e.preventDefault(); show('#view-login'); };
 
