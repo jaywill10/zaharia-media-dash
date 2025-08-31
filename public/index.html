@@ -904,6 +904,7 @@
             $('#mfaSecret').textContent=sec;
             $('#mfaCopyLink').onclick=()=>copyToClipboard(r.otpauth);
             $('#mfaCopySecret').onclick=()=>copyToClipboard(sec);
+            S.me = r.user || S.me;
           }
         }catch(e){ toast(e.error||'Failed to start setup','err'); }
       };
