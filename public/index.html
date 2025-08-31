@@ -342,7 +342,7 @@
         <!-- TAB: Invites -->
         <div id="tab-invites" class="pt-4 hidden">
           <h3 class="font-semibold mb-2">Invites</h3>
-          <div class="grid grid-cols-1 md:grid-cols-4 gap-3 items-end max-w-3xl">
+          <div class="grid grid-cols-1 md:grid-cols-5 gap-3 items-end max-w-4xl">
             <div>
               <label class="block text-xs mb-1">Role</label>
               <select id="invRole" class="px-3 py-2 rounded bg-white/5 border w-full">
@@ -350,7 +350,7 @@
                 <option value="admin">admin</option>
               </select>
             </div>
-            <div class="md:col-span-2">
+            <div>
               <label class="block text-xs mb-1">Expires</label>
               <select id="invPreset" class="px-3 py-2 rounded bg-white/5 border w-full">
                 <option value="1d">1 day</option>
@@ -359,6 +359,10 @@
                 <option value="6m">6 months</option>
                 <option value="never">Never</option>
               </select>
+            </div>
+            <div class="md:col-span-2">
+              <label class="block text-xs mb-1">Email</label>
+              <input id="invEmail" type="email" placeholder="user@example.com" class="px-3 py-2 rounded bg-white/5 border w-full" />
             </div>
             <div>
               <button id="invCreate" class="px-4 py-2 btn-brand text-white rounded w-full">Create Invite</button>
@@ -857,7 +861,15 @@
       box.innerHTML = `<table class="w-full text-sm"><thead class="text-neutral-300"><tr><th class="text-left py-2">Code</th><th class="text-left">Role</th><th class="text-left">Created by</th><th class="text-left">Created at</th><th class="text-left">Expires</th><th class="text-left">Used by</th><th class="text-left">Used at</th><th class="text-right">Actions</th></tr></thead><tbody>${rows || `<tr><td class="py-2 text-neutral-300" colspan="8">No invites</td></tr>`}</tbody></table>`;
       box.querySelectorAll('.copy').forEach(b=> b.onclick = ()=> copyToClipboard(b.dataset.code));
       box.querySelectorAll('.del').forEach(b=> b.onclick = async ()=>{ if(!confirm(`Delete invite ${b.dataset.code}?`)) return; await api(`/api/invites/${b.dataset.code}`, { method:'DELETE' }); toast('Invite deleted'); await renderInvites(); });
-      $('#invCreate').onclick = async ()=>{ const role=$('#invRole').value||'user'; const expiresAt=(()=>{ const p=$('#invPreset').value; if(p==='never') return null; const d=new Date(); if(p==='1d') d.setDate(d.getDate()+1); if(p==='7d') d.setDate(d.getDate()+7); if(p==='1m') d.setMonth(d.getMonth()+1); if(p==='6m') d.setMonth(d.getMonth()+6); return d.toISOString(); })(); const r=await api('/api/invites',{ method:'POST', body: JSON.stringify({ role, expiresAt })}); toast(`Invite created: ${r.code}`); await renderInvites(); };
+      $('#invCreate').onclick = async ()=>{
+        const role=$('#invRole').value||'user';
+        const expiresAt=(()=>{ const p=$('#invPreset').value; if(p==='never') return null; const d=new Date(); if(p==='1d') d.setDate(d.getDate()+1); if(p==='7d') d.setDate(d.getDate()+7); if(p==='1m') d.setMonth(d.getMonth()+1); if(p==='6m') d.setMonth(d.getMonth()+6); return d.toISOString(); })();
+        const email=($('#invEmail')?.value||'').trim();
+        const r=await api('/api/invites',{ method:'POST', body: JSON.stringify({ role, expiresAt, email: email||undefined })});
+        toast(`Invite created: ${r.code}${r.emailSent ? ' (email sent)' : ''}`);
+        if($('#invEmail')) $('#invEmail').value='';
+        await renderInvites();
+      };
       $('#eraseUsedInvites').onclick = async ()=>{ if(!confirm('Erase USED invites from history? This cannot be undone.')) return; await api('/api/invites/erase-history',{ method:'POST', body: JSON.stringify({ includeUnused:false }) }); toast('Used invite history cleared'); await renderInvites(); };
       $('#eraseAllInvites').onclick = async ()=>{ if(!confirm('Erase ALL invites? This cannot be undone.')) return; await api('/api/invites/erase-history',{ method:'POST', body: JSON.stringify({ includeUnused:true }) }); toast('All invites cleared'); await renderInvites(); };
     }
