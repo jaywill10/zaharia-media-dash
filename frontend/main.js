@@ -13,6 +13,11 @@ import QRCode from 'qrcode';
       wrap.appendChild(div); setTimeout(()=> div.remove(), 3500);
     }
 
+    function applyTheme(){
+      const theme = (S.me && S.me.preferences && S.me.preferences.theme) || 'dark';
+      document.body.setAttribute('data-theme', theme);
+    }
+
     // Modal helper
     const Modal = {
       open({ title, bodyHTML, confirmText='Confirm', onConfirm, onOpen }){
@@ -152,6 +157,7 @@ import QRCode from 'qrcode';
       const me = S.me || (await api('/api/me')).user; S.me = me;
 
       // Header user menu
+      applyTheme();
       $('#navArea').classList.remove('hidden');
       const displayName = [S.me.firstName, S.me.lastName].filter(Boolean).join(' ') || S.me.username || '';
       $('#userName').textContent = displayName;
@@ -483,13 +489,22 @@ import QRCode from 'qrcode';
     }
 
     // Settings (profile + picture + prefs)
-    function populateMeForm(){ const f=document.getElementById('meForm'); if(!f||!S.me) return; f.username.value=''; f.password.value=''; f.firstName.value = S.me.firstName || ''; f.lastName.value = S.me.lastName || ''; }
+    function populateMeForm(){
+      const f=document.getElementById('meForm'); if(!f||!S.me) return;
+      f.username.value=''; f.password.value='';
+      f.firstName.value = S.me.firstName || '';
+      f.lastName.value = S.me.lastName || '';
+      const themeSel=$('#prefTheme'); if(themeSel){ themeSel.value=(S.me.preferences&&S.me.preferences.theme)||'dark'; }
+    }
     document.getElementById('meForm').addEventListener('submit', async (e)=>{
       e.preventDefault(); const fd=new FormData(e.target);
       const body = { username: fd.get('username')||undefined, password: fd.get('password')||undefined, firstName: (fd.get('firstName')||'').trim(), lastName: (fd.get('lastName')||'').trim() };
-      const cb=$('#prefShowNP'); if(cb && S.me && S.me.role==='admin'){ body.preferences = Object.assign({}, S.me.preferences||{}, { showNowPlaying: !!cb.checked }); }
+      const prefs = Object.assign({}, S.me.preferences||{});
+      const themeSel=$('#prefTheme'); if(themeSel) prefs.theme=themeSel.value;
+      const cb=$('#prefShowNP'); if(cb && S.me && S.me.role==='admin'){ prefs.showNowPlaying = !!cb.checked; }
+      body.preferences = prefs;
       if($('#pfp') && $('#pfp').files[0]){ const file=$('#pfp').files[0]; body.profileImage = await new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(r.result); r.onerror=rej; r.readAsDataURL(file); }); }
-      try{ const r=await api('/api/me',{ method:'PUT', body: JSON.stringify(body) }); S.me=r.user; toast('Saved.'); const displayName=[S.me.firstName,S.me.lastName].filter(Boolean).join(' ')||S.me.username; $('#userName').textContent = displayName; const ua=$('#userAvatar'), ui=$('#userInitial'); if(S.me.profileImage){ ua.src=S.me.profileImage; ua.classList.remove('hidden'); ui.classList.add('hidden'); } else { ui.textContent = initialsFor(S.me); ui.classList.remove('hidden'); ua.classList.add('hidden'); } }
+      try{ const r=await api('/api/me',{ method:'PUT', body: JSON.stringify(body) }); S.me=r.user; applyTheme(); toast('Saved.'); const displayName=[S.me.firstName,S.me.lastName].filter(Boolean).join(' ')||S.me.username; $('#userName').textContent = displayName; const ua=$('#userAvatar'), ui=$('#userInitial'); if(S.me.profileImage){ ua.src=S.me.profileImage; ua.classList.remove('hidden'); ui.classList.add('hidden'); } else { ui.textContent = initialsFor(S.me); ui.classList.remove('hidden'); ua.classList.add('hidden'); } }
       catch(err){ toast(err.error||'Save failed','err'); }
     });
     $('#btn-admin-close').onclick = ()=> show('#view-apps');
