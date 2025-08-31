@@ -6,13 +6,19 @@
   "main": "app.mjs",
   "scripts": {
     "start": "node app.mjs",
-    "migrate": "node scripts/migrate.mjs"
+    "migrate": "node scripts/migrate.mjs",
+    "build": "vite build",
+    "dev": "vite"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
     "express": "^4.19.2",
     "jsonwebtoken": "^9.0.2",
     "nodemailer": "^7.0.6",
+    "qrcode": "^1.5.4",
     "sql.js": "^1.13.0"
+  },
+  "devDependencies": {
+    "vite": "^7.1.3"
   }
 }
