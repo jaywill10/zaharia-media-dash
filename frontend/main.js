@@ -110,14 +110,14 @@ import QRCode from 'qrcode';
           const otpInput=$('#registerOtp');
           $('#registerVerify').onclick=async ()=>{
             const code=(otpInput.value||'').trim();
-            if(!/^[0-9]{6}$/.test(code)) return toast('Enter a valid 6-digit code','err');
+            if(!/^[0-9]{6}$/.test(code)) return toast('Enter the 6‑digit code from your app','err');
             try{
               const { token, user } = await api('/api/login',{ method:'POST', body: JSON.stringify({ username, password, otp: code }) });
               S.token=token; S.me=user; localStorage.setItem('zm_token', token);
               clearUrlParams();
               toast('Account created!');
               afterLogin();
-            }catch(err){ toast(err.error||'Verification failed','err'); }
+            }catch(err){ toast(err.error||'Invalid or expired MFA code','err'); }
           };
         } else {
           toast('Account created! You can now sign in.');
@@ -478,7 +478,7 @@ import QRCode from 'qrcode';
         try{
           const r=await api('/api/me',{ method:'PUT', body: JSON.stringify({ mfaAction:'verify', code }) });
           S.me=r.user; toast('MFA enabled and saved'); setupMfaUI();
-        }catch(e){ toast(e.error||'Verification failed','err'); }
+        }catch(e){ toast(e.error||'Invalid or expired MFA code','err'); }
       };
     }
 
