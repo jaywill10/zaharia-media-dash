@@ -76,6 +76,31 @@ import QRCode from 'qrcode';
       );
     }
 
+    async function loadNews(){
+      try{
+        const res = await fetch('/api/news');
+        const data = await res.json();
+        const grid = document.querySelector('#newsSection .news-grid');
+        if(!grid) return;
+        grid.innerHTML='';
+        (data.items||[]).forEach((item, idx)=>{
+          const art=document.createElement('article');
+          art.className='news-item'+(idx===0?' large':'');
+          if(item.image){
+            const img=document.createElement('img');
+            img.src=item.image;
+            img.alt=item.title;
+            art.appendChild(img);
+          }
+          const h4=document.createElement('h4');
+          h4.textContent=item.title;
+          art.appendChild(h4);
+          art.onclick=()=>window.open(item.link,'_blank');
+          grid.appendChild(art);
+        });
+      }catch(e){ console.error('Failed to load news', e); }
+    }
+
     async function copyToClipboard(t){ try{ await navigator.clipboard.writeText(t); }catch{ const ta=document.createElement("textarea"); ta.value=t; document.body.appendChild(ta); ta.select(); document.execCommand("copy"); ta.remove(); } toast('Copied to clipboard'); }
 
     // Bootstrap token
@@ -204,6 +229,7 @@ import QRCode from 'qrcode';
       S.sabPage = 1; startSabPolling();
       startNowPlayingPolling();
       setupMfaUI();
+      loadNews();
 
       if (!skipShow) show('#view-apps');
     }
