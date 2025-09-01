@@ -299,23 +299,6 @@ app.put('/api/plex', authMiddleware, adminOnly, (req,res)=>{ const { baseUrl, to
 app.get('/api/plex/test', authMiddleware, adminOnly, async (req,res)=>{ const j=load(); let { baseUrl, token } = j.integrations?.plex||{}; if(!baseUrl||!token) return res.status(400).json({ ok:false, error:'Missing baseUrl or token' }); if(!/^https?:\/\//i.test(baseUrl)) baseUrl=`http://${baseUrl}`; baseUrl=baseUrl.replace(/\/+$/,''); const url=`${baseUrl}/status/sessions?X-Plex-Token=${encodeURIComponent(token)}`; try{ const r=await fetch(url,{ headers:{ 'Accept':'application/json','X-Plex-Token':token } }); const ct=r.headers.get('content-type')||''; const body=await r.text(); res.json({ ok:r.ok, status:r.status, url, contentType:ct, sample: body.slice(0,2000) }); } catch(e){ res.json({ ok:false, error:String(e), url }); }
 });
 
-// ---------------- MSN News Settings ----------------
-app.get('/api/msn', authMiddleware, adminOnly, (req,res)=>{
-  const j=load();
-  const msn=j.integrations?.msn || { enabled:true, market:'en-us' };
-  res.json({ msn });
-});
-app.put('/api/msn', authMiddleware, adminOnly, (req,res)=>{
-  const { enabled, market } = req.body||{};
-  const j=load();
-  j.integrations = j.integrations || {};
-  j.integrations.msn = j.integrations.msn || { enabled:true, market:'en-us' };
-  if(enabled!==undefined) j.integrations.msn.enabled=!!enabled;
-  if(market!==undefined) j.integrations.msn.market=String(market);
-  save(j);
-  res.json({ ok:true });
-});
-
 // SMTP settings
 app.get('/api/smtp', authMiddleware, adminOnly, (req,res)=>{ const j=load(); const s=j.smtp||{ host:'', port:587, secure:false, user:'', from:'', pass:'' }; res.json({ smtp: { host:s.host||'', port:s.port||587, secure:!!s.secure, user:s.user||'', from:s.from||'' } }); });
 app.put('/api/smtp', authMiddleware, adminOnly, (req,res)=>{ const { host, port, user, pass, secure, from } = req.body||{}; const j=load(); j.smtp=j.smtp||{ host:'', port:587, secure:false, user:'', pass:'', from:'' }; if(host!==undefined) j.smtp.host=String(host); if(port!==undefined) j.smtp.port=Number(port)||587; if(user!==undefined) j.smtp.user=String(user); if(pass!==undefined) j.smtp.pass=String(pass); if(secure!==undefined) j.smtp.secure=!!secure; if(from!==undefined) j.smtp.from=String(from); save(j); initMailer(); res.json({ ok:true }); });
@@ -365,12 +348,7 @@ app.get('/api/now-playing', authMiddleware, async (req,res)=>{
 // ---------------- News ----------------
 app.get('/api/news', async (_req, res) => {
   try {
-    const j = load();
-    const cfg = j.integrations?.msn || { enabled: true, market: 'en-us' };
-    if(!cfg.enabled) return res.json({ items: [], enabled:false });
-    const market = encodeURIComponent(cfg.market || 'en-us');
-    const url = `https://www.msn.com/en-us/feedhandler.ashx?mkt=${market}&setlang=${market}&q=&w=0&v=1&vertical=news&format=rss`;
-    const rss = await fetch(url).then(r => r.text());
+    const rss = await fetch('https://www.msn.com/en-us/feedhandler.ashx?mkt=en-us&setlang=en-us&q=&w=0&v=1&vertical=news&format=rss').then(r => r.text());
     const data = await parseStringPromise(rss, { explicitArray: false });
     const rawItems = data?.rss?.channel?.item || [];
     const items = (Array.isArray(rawItems) ? rawItems : [rawItems]).slice(0,5).map(it => ({
@@ -378,7 +356,7 @@ app.get('/api/news', async (_req, res) => {
       link: it.link || '',
       image: (it['media:content']?.$?.url) || (it.enclosure?.$?.url) || ''
     }));
-    res.json({ items, enabled:true });
+    res.json({ items });
   } catch(err){
     res.status(500).json({ error:'Failed to fetch news' });
   }
