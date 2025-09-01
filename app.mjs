@@ -21,6 +21,7 @@ import nodemailer from 'nodemailer';
 import { authenticator } from 'otplib';
 import { fileURLToPath } from 'url';
 import { init as initDb, load, save } from './db.js';
+import { parseStringPromise } from 'xml2js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -342,6 +343,23 @@ app.get('/api/now-playing', authMiddleware, async (req,res)=>{
     }
     res.json({ sessions });
   } catch(e){ res.json({ sessions: [] }); }
+});
+
+// ---------------- News ----------------
+app.get('/api/news', async (_req, res) => {
+  try {
+    const rss = await fetch('https://www.msn.com/en-us/feedhandler.ashx?mkt=en-us&setlang=en-us&q=&w=0&v=1&vertical=news&format=rss').then(r => r.text());
+    const data = await parseStringPromise(rss, { explicitArray: false });
+    const rawItems = data?.rss?.channel?.item || [];
+    const items = (Array.isArray(rawItems) ? rawItems : [rawItems]).slice(0,5).map(it => ({
+      title: it.title || '',
+      link: it.link || '',
+      image: (it['media:content']?.$?.url) || (it.enclosure?.$?.url) || ''
+    }));
+    res.json({ items });
+  } catch(err){
+    res.status(500).json({ error:'Failed to fetch news' });
+  }
 });
 
 // ---------------- Features & Me ----------------
