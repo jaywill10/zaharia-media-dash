@@ -60,7 +60,7 @@ import QRCode from 'qrcode';
     $('#brandLink').onclick = (e)=>{ e.preventDefault(); if (S.token) show('#view-apps'); else show('#view-login'); };
 
     // Tabs
-    document.addEventListener('click', (e)=>{ const t=e.target.closest('.tab'); if(!t) return; document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active')); t.classList.add('active'); const k=t.dataset.tab; ['apps','users','invites'].forEach(name=> $('#tab-'+name)?.classList.toggle('hidden', name!==k)); });
+    document.addEventListener('click', (e)=>{ const t=e.target.closest('.tab'); if(!t) return; document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active')); t.classList.add('active'); const k=t.dataset.tab; ['apps','users','invites','news'].forEach(name=> $('#tab-'+name)?.classList.toggle('hidden', name!==k)); });
 
     function renderQRTo(container, text){
       const box=$(container); if(!box) return;
@@ -80,10 +80,17 @@ import QRCode from 'qrcode';
       try{
         const res = await fetch('/api/news');
         const data = await res.json();
-        const grid = document.querySelector('#newsSection .news-grid');
-        if(!grid) return;
+        const section=document.getElementById('newsSection');
+        const grid=section?.querySelector('.news-grid');
+        if(!section||!grid) return;
+        if(data.enabled===false || !(data.items&&data.items.length)){
+          section.classList.add('hidden');
+          grid.innerHTML='';
+          return;
+        }
+        section.classList.remove('hidden');
         grid.innerHTML='';
-        (data.items||[]).forEach((item, idx)=>{
+        data.items.forEach((item, idx)=>{
           const art=document.createElement('article');
           art.className='news-item'+(idx===0?' large':'');
           if(item.image){
@@ -98,7 +105,7 @@ import QRCode from 'qrcode';
           art.onclick=()=>window.open(item.link,'_blank');
           grid.appendChild(art);
         });
-      }catch(e){ console.error('Failed to load news', e); }
+      }catch(e){ console.error('Failed to load news', e); document.getElementById('newsSection')?.classList.add('hidden'); }
     }
 
     async function copyToClipboard(t){ try{ await navigator.clipboard.writeText(t); }catch{ const ta=document.createElement("textarea"); ta.value=t; document.body.appendChild(ta); ta.select(); document.execCommand("copy"); ta.remove(); } toast('Copied to clipboard'); }
@@ -374,6 +381,21 @@ import QRCode from 'qrcode';
             testBtn.onclick = async ()=>{
               try{ const result=await api('/api/plex/test'); if(result.ok) toast('Plex connection successful'); else toast(`Plex test failed (status ${result.status})`,'err'); }
               catch(e){ toast(e.error||'Plex test failed','err'); }
+            };
+          }
+        }catch{}
+
+        // MSN News settings
+        try{
+          const newsCfg=await api('/api/msn');
+          $('#newsEnabled').checked = !!(newsCfg.msn?.enabled ?? true);
+          $('#newsMarket').value = newsCfg.msn?.market || '';
+          const saveNewsBtn=$('#saveNews');
+          if(saveNewsBtn){
+            saveNewsBtn.onclick=async ()=>{
+              await api('/api/msn', { method:'PUT', body: JSON.stringify({ enabled: $('#newsEnabled').checked, market: $('#newsMarket').value.trim() }) });
+              toast('News settings saved');
+              loadNews();
             };
           }
         }catch{}
