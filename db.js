@@ -52,7 +52,7 @@ function init(smtpEnv){
       apps: [],
       features: { showNowPlaying: true },
       sabnzbd: { baseUrl: '', apiKey: '' },
-      integrations: { plex: { baseUrl: '', token: '' }, msn: { enabled: true, market: 'en-us' } },
+      integrations: { plex: { baseUrl: '', token: '' } },
       smtp: {
         host: smtpEnv.host,
         port: smtpEnv.port,
